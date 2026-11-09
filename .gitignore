@@ -1,0 +1,10 @@
+.env
+zbx_env/
+__pycache__/
+*.pyc
+*.log
+env_vars/.MYSQL_*
+env_vars/.POSTGRES_*
+env_vars/.env_grafana
+env_vars/.env_dashboard_sync
+env_vars/.env_*_override
