@@ -15,8 +15,11 @@ def active_source(source):
     """Give the active variant separate, deterministic UUIDs; retain dependent items."""
     head, body = source.split('  templates:\n', 1)
     body = body.replace("'Essential Items'", "'Essential Items Active'")
+    body = body.replace('/Essential Items/', '/Essential Items Active/')
     body = re.sub(r'(?m)^(\s*(?:- )?uuid: )([0-9a-f]{32})$',
-                  lambda m: m[1] + uuid.uuid5(uuid.NAMESPACE_URL, 'zabbix-essential-active/' + m[2]).hex, body)
+                  lambda m: m[1] + uuid.UUID(bytes=uuid.uuid5(uuid.NAMESPACE_URL,
+                                                            'zabbix-essential-active/' + m[2]).bytes,
+                                             version=4).hex, body)
     lines = body.splitlines(keepends=True)
     result = []
     for index, line in enumerate(lines):
@@ -30,7 +33,8 @@ def active_source(source):
             if following.strip() and len(following) - len(following.lstrip()) <= indent:
                 break
             block.append(following)
-        if not any(re.match(r'^ {' + str(indent + 2) + r'}type:', item) for item in block):
+        if (any(re.match(r'^ {' + str(indent + 2) + r'}key:', item) for item in block)
+                and not any(re.match(r'^ {' + str(indent + 2) + r'}type:', item) for item in block)):
             result.append(' ' * (indent + 2) + 'type: ZABBIX_ACTIVE\n')
     return head + '  templates:\n' + ''.join(result)
 

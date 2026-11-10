@@ -23,7 +23,13 @@ Kurulum şunları yapar:
 - `.env` ve veritabanı parola dosyalarını oluşturur. Mevcut dosyaları korur.
 - Zabbix, MySQL ve Grafana servislerini başlatır.
 - Varsayılan Zabbix Admin parolasını `.env` içindeki parolayla değiştirir.
-- `Essential Items` template'ini Zabbix'e import eder.
+- `Essential Items` template'ini CPU, RAM, disk, veri kesilmesi ve yeniden
+  başlama trigger'larıyla Zabbix'e import eder. Üretim modunda aktif sürüm kullanılır.
+
+Trigger eşikleri, mevcut template'i güncelleme ve arayüzden Telegram action/alıcı
+tanımlama: [Trigger ve Telegram bildirimleri](zabbix/README.md#trigger-ve-telegram-bildirimleri).
+Trigger'lar `notify=telegram` etiketi taşır; bildirim için Telegram media type,
+kullanıcı media'sı ve problem/düzelme action'ı arayüzden tamamlanmalıdır.
 
 Varsayılan adresler:
 
