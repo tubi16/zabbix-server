@@ -154,6 +154,8 @@ def read_token(service):
         value = Path("/run/secrets/" + service + "_token").read_text().strip()
     if not value:
         raise ValueError("Service token must not be empty")
+    if not value.isascii() or any(char.isspace() or ord(char) < 33 or ord(char) == 127 for char in value):
+        raise ValueError(service.upper() + "_SERVICE_TOKEN must contain only printable ASCII without whitespace; use the generated token value, not its name")
     return value
 
 

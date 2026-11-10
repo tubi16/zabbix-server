@@ -219,7 +219,13 @@ def main():
     if not sys.stdin.isatty():
         raise SystemExit("Run from an interactive terminal for sudo prompts; use --plan for preview")
     config = read_env()
-    session = rpc("user.login", {"username": "Admin", "password": config["ZABBIX_ADMIN_PASSWORD"]})
+    password = config.get("ZABBIX_ADMIN_PASSWORD", "")
+    if not password.strip():
+        raise SystemExit("ZABBIX_ADMIN_PASSWORD is empty in .env; run python3 scripts/bootstrap_admin.py first.")
+    try:
+        session = rpc("user.login", {"username": "Admin", "password": password})
+    except RuntimeError:
+        raise SystemExit("Zabbix Admin login failed. Check .env password and temporary account lock. For a fresh installation run python3 scripts/bootstrap_admin.py; no agent changes made.") from None
     try:
         PRIVATE.mkdir(mode=0o700, exist_ok=True)
         PRIVATE.chmod(0o700)

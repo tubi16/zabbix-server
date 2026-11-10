@@ -46,7 +46,11 @@ def rpc(method, params, token=None):
     if token:
         headers["Authorization"] = "Bearer " + token
     body = json.dumps({"jsonrpc": "2.0", "method": method, "params": params, "id": 1}).encode()
-    request = Request("http://127.0.0.1:8080/api_jsonrpc.php", data=body, headers=headers)
+    env_path = ROOT / '.env'
+    port = read_env().get('ZABBIX_WEB_NGINX_HTTP_PORT', '8080') if env_path.exists() else '8080'
+    if not port.isascii() or not port.isdecimal() or not 1 <= int(port) <= 65535:
+        raise ValueError('Invalid Zabbix web port in .env')
+    request = Request(f"http://127.0.0.1:{port}/api_jsonrpc.php", data=body, headers=headers)
     try:
         with urlopen(request, timeout=20) as response:
             result = json.load(response)

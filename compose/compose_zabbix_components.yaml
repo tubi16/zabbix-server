@@ -3,6 +3,7 @@ services:
   init: true
   ports:
    - name: zabbix-trapper
+     host_ip: "${ZABBIX_SERVER_BIND_IP:-0.0.0.0}"
      target: 10051
      published: "${ZABBIX_SERVER_PORT}"
      protocol: tcp
@@ -412,11 +413,13 @@ services:
  web-nginx:
   ports:
    - name: web-http
+     host_ip: "${ZABBIX_WEB_BIND_IP:-0.0.0.0}"
      target: 8080
      published: "${ZABBIX_WEB_NGINX_HTTP_PORT}"
      protocol: tcp
      app_protocol: http
    - name: web-https
+     host_ip: "${ZABBIX_WEB_BIND_IP:-0.0.0.0}"
      target: 8443
      published: "${ZABBIX_WEB_NGINX_HTTPS_PORT}"
      protocol: tcp

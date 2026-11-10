@@ -16,9 +16,15 @@ Zabbix Admin parolası ilk kurulumda otomatik hazırlanmışsa `.env` içindeki
 `ZABBIX_GRAFANA_USER` ve `ZABBIX_GRAFANA_PASSWORD` değişkenlerini Zabbix hesabına
 göre doldur. Bu hesabın izlenecek gruplara okuma izni olmalıdır.
 
-Yeni Zabbix kurulumunda Admin parolasını arayüzde değiştir ve seçtiğin değeri
-`.env` içindeki `ZABBIX_ADMIN_PASSWORD` alanına kaydet. Hazırlık scripti bu
-Zabbix hesabını veya API token'larını otomatik oluşturmaz.
+Yeni kurulumda `prepare_config.py`, `.env` için rastgele Admin parolası üretir.
+Mevcut `.env` korunur; `ZABBIX_ADMIN_PASSWORD` boşsa önce güçlü bir parola yaz.
+Servisler başladıktan sonra `python3 scripts/bootstrap_admin.py` çalıştır.
+Sihirbaz bunu otomatik yapar. Betik API'yi bekler, `.env` parolasını doğrular;
+gerekirse yalnızca varsayılan `Admin / zabbix` parolasını `.env` değeriyle değiştirir.
+Başka bir mevcut parola zorla sıfırlanmaz. Parolalar çıktıya yazılmaz.
+API adresi mevcut otomasyonla aynı şekilde `http://127.0.0.1:8080`'dir.
+Bu işlem için servis yeniden başlatmak gerekmez. Parolayı daha sonra arayüzden
+tekrar değiştirirsen `.env` kaydını da güncelle; geri dönüşte varsayılan parolayı kullanma.
 
 Compose proje adı `staj-server`dir. Varsayılan portlar Zabbix web 8080/8443,
 Grafana 3001 ve Zabbix server 10081 olarak ayrılmıştır. Ağlar da mevcut
@@ -30,6 +36,7 @@ varsa `.env` dosyasında port ve alt ağları değiştir.
 ```sh
 docker compose config --quiet
 docker compose up -d
+python3 scripts/import_template.py
 docker compose ps
 ```
 
@@ -41,8 +48,11 @@ bu kaynak kopyasına aktarılmamıştır. Zabbix hesabını hazırladıktan sonr
 
 ## 3. Template ve dashboard
 
-Zabbix'te `zabbix/templates/essential-items.yaml` dosyasını import et ve Linux
-hostlarına bağla. Dinamik ağ arayüzü için [Zabbix açıklamasına](../zabbix/README.md)
+`scripts/import_template.py` önce Admin parolasını hazırlar, ardından
+`zabbix/templates/essential-items.yaml` dosyasını API ile import eder ve doğrular.
+Sihirbaz aynı adımı otomatik çalıştırır. Mevcut öğeler güncellenir, eksikler
+oluşturulur; silme yapılmaz. Template'i Linux hostlarına bağla.
+Dinamik ağ arayüzü için [Zabbix açıklamasına](../zabbix/README.md)
 bak. Template pasif agent erişimi kullanır; yeni kurulumun server'ının hosttaki
 agent tarafından kabul edilmesi gerekir. Kaynak kurulumdaki agent ayarlarını
 değiştirmek bu kopyalama işleminin parçası değildir.

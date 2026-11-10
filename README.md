@@ -1,105 +1,261 @@
-# Staj Server — Zabbix ve Grafana
+# Zabbix ve Grafana kurulumu
 
-Zabbix 7.4, MySQL ve Grafana servisleri; Linux template'leri, dashboard'lar,
-playlist senkronizasyonu ve sunucu tarafından host kaydı. Bu klasör ayrı bir
-Git reposuna alınabilecek bağımsız sunucu kaynak paketidir.
+Çok site / active agent üretim kurulumu: [installation.md](../installation.md).
+Yeni üretim server kurulumu için `python3 setup.py --production` kullan.
 
-**Bu kaynak kopyası başlatılmadı.** Şu an çalışan kurulum `staj-izleme`
-klasöründedir ve bu düzenlemede değiştirilmedi. Canlı `.env`, token, PSK,
-veritabanı ve Grafana volume verileri bu klasöre kopyalanmadı.
+Bu rehber sunucu kurulumu ve **SSH üzerinden uzak Linux cihaz ekleme** içindir.
+Komutları aksi belirtilmedikçe `staj-server` klasöründe, normal kullanıcıyla çalıştır.
+Docker komutları için kullanıcının Docker erişimi olmalıdır.
 
-## Klasörler
+## 1. Sunucuyu kur
 
-| Konum | İçerik |
+Sunucuda çalıştır:
+
+```sh
+python3 setup.py
+```
+
+Menüden **1) Server kurulumu** seç. Port sorularında Enter varsayılanı seçer.
+Paket kurulumu ve servis başlatma sorularını kontrol ederek onayla.
+
+Kurulum şunları yapar:
+
+- `.env` ve veritabanı parola dosyalarını oluşturur. Mevcut dosyaları korur.
+- Zabbix, MySQL ve Grafana servislerini başlatır.
+- Varsayılan Zabbix Admin parolasını `.env` içindeki parolayla değiştirir.
+- `Essential Items` template'ini Zabbix'e import eder.
+
+Varsayılan adresler:
+
+| Servis | Adres / port |
 | --- | --- |
-| `compose.yaml`, `compose/` | Zabbix, Grafana, MySQL ve host-sync servisleri |
-| `.env.example`, `env_vars/` | Yeni kurulum ayarları ve servis yapılandırmaları |
-| `scripts/prepare_config.py` | Yerel `.env` ve veritabanı parolalarını hazırlar |
-| `zabbix/templates/` | Essential Items Linux template'i |
-| `zabbix/tls/enroll.py` | SSH üzerinden agent hazırlama ve Zabbix host kaydı |
-| `zabbix/tls/private/` | Çalıştırılınca oluşan, Git'e alınmayan PSK ve işlem kayıtları |
-| `grafana/templates/` | Cihaz dashboard kaynak tasarımı |
-| `grafana/dashboards/`, `grafana/provisioning/` | Genel dashboard ve veri kaynağı provisioning |
-| `grafana/host-sync/` | Cihaz dashboard'ları ve playlist otomasyonu |
-| `docs/kurulum.md` | Yeni sunucu kurulum adımları |
+| Zabbix web | `http://SUNUCU_IP:8080` |
+| Grafana | `http://SUNUCU_IP:3001` |
+| Zabbix server | `10081` (container içinde `10051`) |
 
-## Sunucuyu hazırlama
+`SUNUCU_IP` yerine kendi sunucunun IP adresini yaz. SSH ve firewall ayarlarını
+kurulum değiştirmez; gerekli erişimleri ortamına göre ayrıca kontrol et.
 
-Docker Compose ve Python 3 gerekir. Yeni kurulum için:
+Sihirbaz yerine elle kuracaksan aynı sıra şöyledir:
 
 ```sh
 python3 scripts/prepare_config.py
 docker compose config --quiet
+docker compose up -d
+python3 scripts/import_template.py
+docker compose ps
 ```
 
-[Kurulum yönergesini](docs/kurulum.md) tamamladıktan sonra servisleri başlat.
-Compose proje adı `staj-server`dir. Varsayılan web portları Zabbix `8080`,
-Grafana `3001`; yayınlanan Zabbix server portu `10081`dir. Bu portlar ve Docker
-alt ağları mevcut `staj-izleme` kurulumuyla çakışabilir; aynı makinede paralel
-başlatmadan önce portları ve alt ağları ayır veya planlı geçiş yap.
+Her komut başarılı olduktan sonra sonrakine geç. `import_template.py` hem Admin
+parolasını hazırlar hem template'i yükler. Sihirbaz tamamlandıysa bu komutları
+tekrar çalıştırman gerekmez.
 
-| Hesap | Kullanıcı | Yerel parola / token kaydı |
+## 2. Giriş bilgilerini kontrol et
+
+`.env` dosyasını güvenli bir editörle aç. Parolaları veya token'ları paylaşma,
+Git'e ekleme ve terminal çıktısına dökme.
+
+| Değişken | Ne için kullanılır? | Ne yazılmalı? |
 | --- | --- | --- |
-| Zabbix yönetimi | `Admin` | `.env`: `ZABBIX_ADMIN_PASSWORD` |
-| Grafana yönetimi | `admin` | `.env`: `GF_SECURITY_ADMIN_PASSWORD` |
-| Grafana veri kaynağı | `ZABBIX_GRAFANA_USER` ile belirlenir | `.env`: `ZABBIX_GRAFANA_PASSWORD` |
-| Grafana servis hesabı | Oluşturulacak Editor hesabı | `.env`: `GRAFANA_SERVICE_TOKEN` |
-| Zabbix salt okunur API erişimi | Oluşturulacak entegrasyon hesabı | `.env`: `ZABBIX_SERVICE_TOKEN` |
+| `ZABBIX_ADMIN_PASSWORD` | Zabbix `Admin` hesabı ve cihaz kayıt betiği | Kurulumun ürettiği parola |
+| `GF_SECURITY_ADMIN_USER` | Grafana giriş kullanıcısı | Varsayılan `admin` |
+| `GF_SECURITY_ADMIN_PASSWORD` | Grafana giriş parolası | Kurulumun ürettiği parola |
+| `ZABBIX_GRAFANA_USER` | Grafana veri kaynağının Zabbix kullanıcısı | Varsayılan `Admin` |
+| `ZABBIX_GRAFANA_PASSWORD` | Yukarıdaki Zabbix hesabının parolası | Varsayılan `${ZABBIX_ADMIN_PASSWORD}` |
+| `GRAFANA_SERVICE_TOKEN` | Dashboard ve playlist oluşturma | 5. adımda Grafana'nın ürettiği token |
+| `ZABBIX_SERVICE_TOKEN` | Otomasyonun Zabbix host listesini okuması | 5. adımda Zabbix'in ürettiği token |
 
-Gerçek değerler README'ye veya Git'e yazılmaz. `prepare_config.py` Zabbix
-hesaplarını/API token'larını oluşturmaz; arayüzde ayarlanan değerler `.env`
-dosyasına kaydedilmelidir. Yeni kaynak repo eski ortamın hesaplarını içermez.
+İlk açılışta iki token alanı **boş kalabilir**. Önce servislere giriş yapıp token
+üreteceksin, sonra bu alanları dolduracaksın.
 
-## Ayrı agent reposuyla host kaydı
+Veri kaynağı parolası bir API token değildir. `ZABBIX_GRAFANA_USER=Admin` ise
+`ZABBIX_GRAFANA_PASSWORD=${ZABBIX_ADMIN_PASSWORD}` bırak. Compose bu referansı
+Admin parolasıyla doldurur. Ayrı bir Zabbix hesabı kullanırsan bu iki alana o
+hesabın kullanıcı adını ve gerçek parolasını yaz; hesaba izlenen gruplar için
+okuma izni ver.
 
-Agent reposunu istediğin yere klonla. Bu repo agent kurulum kodunu içermez;
-`--agent-source` ile bağımsız agent reposunun yerel yolunu alır:
+Önemli: `.env` parolasını değiştirmek mevcut Zabbix veya Grafana hesabının
+parolasını kendiliğinden değiştirmez. Zabbix bootstrap betiği yalnızca fabrika
+parolası `zabbix` olan Admin hesabını günceller; başka bir parolayı sıfırlamaz.
+Grafana yönetici parolası da mevcut veritabanı için `.env` üzerinden yeniden
+atanmaz. Mevcut hesap parolasını arayüzden değiştirirsen ilgili `.env` kaydını da
+eşleştir.
+
+## 3. Uzak cihaza agent kur
+
+Uzak Linux cihazda ayrı agent reposundaki kurulum sihirbazını çalıştır:
 
 ```sh
-python3 zabbix/tls/enroll.py --host YeniPC --address 172.16.53.150 --ssh kullanici@172.16.53.150 --server 172.16.53.132 --agent-source /tam/yol/agent-reposu
+python3 setup.py
 ```
 
-IP'leri ve kullanıcıyı ortama göre değiştir. Klasörler bu çalışma alanındaki
-gibi `staj-server` ve `staj-agent` adıyla yan yanaysa `--agent-source` verilmeden
-de çalışır. Farklı repo adları veya konumlar için parametreyi açıkça belirt.
-Önizleme için `--plan` ekle.
+**2) Agent kurulumu** seç ve paket kurulumunu tamamla. TLS için mevcut PSK yolu
+sorulduğunda bu aşamada TLS yapılandırmasını reddet; bir sonraki adımda sunucu
+cihaza özel anahtarı üretecek ve aktaracak.
 
-Sunucu PSK üretir ve Zabbix API'sini yönetir. Hedef cihaza **yalnızca** agent
-reposundaki `install.py` ile o cihaza ait PSK gönderilir. Sunucu `.env` dosyası,
-Admin parolası ve API token'ları hedefe gönderilmez. Agent scripti de Zabbix
-API'sine erişmez. Hedefte agent/agent2 ve Python 3 kurulu olmalıdır; gerekli
-agent işlemlerinde interaktif sudo istenir.
+Uzak cihazda Python 3, çalışan systemd ve kurulu Zabbix agent/agent2 bulunmalı.
+Sunucudan bu cihaza SSH erişimi ve cihazdaki kullanıcı için sudo yetkisi gerekli.
 
-[TLS akışı, parametreler ve geri alma](zabbix/tls/README.md).
+## 4. Uzak cihazı sunucudan kaydet
 
-## Dashboard ve playlist
+Sunucuda agent reposunun da bir kopyası bulunmalı. Bu, uzak cihaza gönderilecek
+`install.py` dosyası için gereklidir.
 
-Host-sync `Linux servers` grubundaki etkin cihazları 60 saniyede bir kontrol
-eder. `Zabbix Linux devices` klasörüne cihaz dashboard'larını oluşturur ve
-`Zabbix — Linux devices` playlist'ine ekler. Geçiş süresi 30 saniyedir.
-Tasarımları `grafana/templates/linux-template.json` üzerinden düzenle.
+Sunucu reposunda çalıştır:
 
 ```sh
-docker compose --profile host-sync up -d
-docker compose --profile host-sync ps
+python3 setup.py
+```
+
+**3) Sunucudan cihaz ekle** seç. Soruları şu şekilde doldur:
+
+| Soru | Yazılacak değer |
+| --- | --- |
+| Cihazın Zabbix adı | Örneğin `OfisPC`; her cihaz için ayrı ad |
+| Cihaz IP adresi | Uzak cihazın sunucudan erişilen IP'si |
+| Sunucunun agent tarafından görülen IP adresi | Uzak cihazın bağlantıda gördüğü sunucu kaynak IP'si |
+| SSH hedefi | Örneğin `kullanici@192.168.1.50` |
+| Agent repo yolu | Sunucudaki agent reposunun tam yolu |
+
+NAT veya VPN varsa kaynak IP, sunucunun bildiğin LAN IP'sinden farklı olabilir.
+Bu adres agent'ın `Server=` izin listesine eklenir.
+
+Gösterilen planı kontrol et ve kayıt işlemini onayla. İşlem agent ayarlarını
+yedekler ve agent servisini yeniden başlatır. Her cihaz için ayrı PSK üretilir:
+
+- Sunucudaki anahtar: `zabbix/tls/private/CIHAZ_ADI.psk`
+- Uzak cihazdaki anahtar: `/etc/zabbix/tls/staj-CIHAZ_ADI.psk`
+
+PSK'yi elle üretmen veya ilk cihazın anahtarını başka cihazda kullanman gerekmez.
+Sunucunun `.env` dosyası ve API token'ları uzak cihaza gönderilmez.
+
+Başarılı kurulum sonunda **`4/4 Complete: PSK succeeds; plaintext rejected`**
+mesajını görmelisin. Zabbix hostu `Linux servers` grubuna alınır, `Essential
+Items` bağlanır ve PSK zorunlu yapılır. İşlem hata verirse tamamlanmış sayma;
+hatayı giderip aynı cihaz adıyla tekrar çalıştır. Mevcut anahtar korunur.
+
+Zabbix'te hostun kullanılabilirliğini ve Encryption ayarını kontrol et.
+`No` görünüyorsa PSK kaydı tamamlanmamıştır. Ayrıntılı komutlar ve geri alma:
+[TLS kayıt rehberi](zabbix/tls/README.md).
+
+## 5. Grafana ve Zabbix token'larını oluştur
+
+Token'ı kendin rastgele yazma. İlgili uygulamanın ürettiği **gizli değeri**
+kopyala; token'ın adı veya açıklaması kimlik doğrulamak için kullanılmaz.
+
+### Grafana token'ı
+
+1. Grafana'ya yönetici hesabıyla giriş yap.
+2. **Administration → Users and access → Service accounts** bölümünü aç.
+3. `host-dashboard-sync` adında **Editor** rolünde servis hesabı oluştur.
+4. Hesabın içinde **Add service account token** ile token üret.
+5. Üretilen değeri `.env` içindeki `GRAFANA_SERVICE_TOKEN=` alanına yapıştır.
+
+### Zabbix token'ı
+
+1. Zabbix'te otomasyon için bir kullanıcı oluştur veya uygun hesabı kullan.
+2. Kullanıcının grubuna `Linux servers` host grubu için **Read** izni ver.
+3. Kullanıcı rolünde API erişimi açık olmalı; `hostgroup.get` ve `host.get`
+   metotlarına izin verilmeli.
+4. Yönetici hesabıyla **Users → API tokens → Create API token** bölümünü aç.
+5. İlgili kullanıcıyı seç, token'ı oluştur ve **Generate** ile gizli değeri al.
+6. Bu değeri `.env` içindeki `ZABBIX_SERVICE_TOKEN=` alanına yapıştır.
+
+Token süresi belirlediysen süresi dolmadan yenile. İki token farklıdır;
+Grafana token'ını Zabbix alanına veya veri kaynağı parola alanına yazma.
+
+## 6. Grafana veri kaynağını test et
+
+Grafana'da **Connections → Data sources → Zabbix** aç. Veri kaynağı kurulumda
+otomatik oluşturulur; UID'si `zabbix` olur. **Save & test** ile bağlantıyı test et.
+
+Kullanıcı/parola hatası çıkarsa 2. adımdaki `ZABBIX_GRAFANA_USER` ve
+`ZABBIX_GRAFANA_PASSWORD` alanlarını kontrol et. Hesap geçici kilitlendiyse
+ardışık giriş denemelerini durdur ve kilidin kalkmasını bekle.
+
+`.env` içindeki veri kaynağı bilgilerini sonradan değiştirdiysen Grafana'ya
+uygulamak için aşağıdaki komutları çalıştır. Bu işlem Grafana container'ını
+gerekirse yeniden oluşturur; kısa süreli erişim kesintisi olabilir:
+
+```sh
+docker compose config --quiet
+docker compose up -d --no-deps grafana
+```
+
+Yalnızca `docker compose restart` yeni `.env` değerlerini aktarmaya yetmez.
+
+## 7. Cihaz dashboard'larını ve playlist'i başlat
+
+İki token `.env` içine yazıldıktan sonra çalıştır:
+
+```sh
+docker compose --profile host-sync config --quiet
+docker compose --profile host-sync up -d --no-deps host-dashboard-sync
 docker compose logs --tail 30 host-dashboard-sync
+```
+
+Bu komut yalnızca dashboard otomasyonunu başlatır; Zabbix, MySQL ve Grafana'yı
+yeniden başlatmaz. Başarılı döngüde logda `Synced ... hosts` görürsün.
+
+Otomasyon varsayılan olarak 60 saniyede bir `Linux servers` grubundaki etkin
+hostları kontrol eder. Grafana sayfasını yenile:
+
+- **Dashboards → Zabbix Linux devices:** Her cihazın dashboard'u.
+- **Dashboards → Playlists → Zabbix — Linux devices:** Cihazları sırayla gösteren playlist.
+
+Playlist'i arayüzden başlat; varsayılan geçiş süresi 30 saniyedir. Grupta etkin
+host yoksa cihaz dashboard'u oluşmaz. Sonradan eklenen cihazlar sonraki döngüde
+alınır; açık playlist'e yansımazsa playlist'i yeniden başlat.
+
+Normal `docker compose up -d`, `host-sync` profilini ilk kez etkinleştirmez;
+yukarıdaki başlatma adımı gereklidir.
+
+## 8. Sonraki `.env` değişikliklerini uygula
+
+Veri kaynağı bilgilerini veya token'ları değiştirdiğinde:
+
+```sh
+docker compose --profile host-sync config --quiet
+docker compose --profile host-sync up -d --no-deps grafana host-dashboard-sync
+docker compose logs --since 2m --tail 30 host-dashboard-sync
+```
+
+Compose değişen ortam değerlerini container'lara aktarır. Grafana yeniden
+oluşturulursa kısa süreli erişim kesintisi olur. Zabbix ve MySQL etkilenmez.
+
+## Sorun kontrolü ve geri alma
+
+| Belirti | Kontrol |
+| --- | --- |
+| Dashboard/playlist yok | `host-dashboard-sync` çalışıyor mu; token yetkileri ve `Linux servers` üyeliği doğru mu? |
+| `latin-1` / Türkçe karakter hatası | Token adı yerine uygulamanın ürettiği gerçek token değeri yazılmış mı? |
+| Data source kullanıcı/parola hatası | Zabbix hesabının gerçek parolası girilmiş mi; hesap kilitli mi? |
+| Agent `access permissions` hatası | Agent logundaki gerçek kaynak IP, `Server=` listesinde izinli mi? |
+| Gauge grafiği bozuk | Grafana adresinde Dark Reader gibi görünümü değiştiren uzantıları kapat. |
+
+Dashboard otomasyonunu geri almak/durdurmak için:
+
+```sh
+docker compose stop host-dashboard-sync
+```
+
+Oluşturulmuş dashboard ve playlist'ler korunur. `.env` değişikliğini geri almak
+için eski değerleri güvenli kaydından geri yazıp 8. adımdaki uygulama komutunu
+çalıştır. Agent değişikliğini geri almak için kurulum çıktısındaki config yedeği
+ve [TLS geri alma adımlarını](zabbix/tls/README.md) kullan.
+
+Tüm proje servislerini verileri koruyarak durdurmak için:
+
+```sh
 docker compose --profile host-sync stop
 ```
 
-`stop` verileri silmez. MySQL verileri `zbx_env/var/lib/mysql/` altında,
-Grafana verileri `staj-server_grafana-storage` volume'ünde tutulur. `.env`,
-veritabanı parola dosyaları ve `zabbix/tls/private/` kayıtlarını yedekle;
-`down -v` veya veri dizini temizleme işlemleri yapma.
+`.env`, `env_vars/` parola dosyaları ve `zabbix/tls/private/` kayıtlarını güvenli
+yedekle. MySQL verileri `zbx_env/var/lib/mysql/`, Grafana verileri Docker'ın
+`grafana-storage` volume'ündedir. Volume veya veri dizinlerini silme; `down -v`
+çalıştırma.
 
-## Testler
-
-Agent reposu klonlu olmasa da sunucu testleri bağımsız çalışır:
-
-```sh
-python3 -B -m unittest discover -s zabbix/tls -p 'test_*.py'
-python3 -B -m unittest discover -s grafana/host-sync -p 'test_*.py'
-docker compose --env-file .env.example --profile host-sync config --quiet
-```
-
+Dashboard kaynak tasarımı: `grafana/templates/linux-template.json`.
+Otomasyon ayrıntıları: [host-sync rehberi](grafana/host-sync/README.md).
 Zabbix Docker tanımları upstream `zabbix/zabbix-docker` projesinden alınmıştır;
-lisans [LICENSE](LICENSE) dosyasındadır.
+lisans: [LICENSE](LICENSE).

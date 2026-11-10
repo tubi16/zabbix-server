@@ -10,6 +10,19 @@ spec.loader.exec_module(wizard)
 
 
 class WizardTests(unittest.TestCase):
+    def test_invalid_ip_reprompts(self):
+        with patch('builtins.input', side_effect=['invalid', '192.0.2.10']):
+            self.assertEqual(wizard.prompt('IP', validator=wizard.ipaddress.ip_address), '192.0.2.10')
+
+    def test_enroll_declined_runs_only_plan(self):
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp)
+            (target / 'install.py').touch()
+            with patch('builtins.input', side_effect=['pc1', '192.0.2.10', '192.0.2.1', 'user@192.0.2.10', temp]), patch.object(wizard, 'ask', return_value=False), patch.object(wizard, 'run') as run:
+                wizard.enroll(target)
+                self.assertEqual(run.call_count, 1)
+                self.assertEqual(run.call_args.args[-1], '--plan')
+
     def test_existing_directory_never_overwritten(self):
         with tempfile.TemporaryDirectory() as temp:
             (Path(temp) / 'staj-server').mkdir()
