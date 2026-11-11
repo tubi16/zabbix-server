@@ -1,0 +1,234 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: ee98f9af52d5434ba65001c4cb001eaf
+      template: 'Essential Items'
+      name: 'Essential Items Linux'
+      description: 'Essential Linux metrics for Zabbix agent 7.4+. Passive checks; default IPv4 route discovery.'
+      groups:
+        - name: Templates
+      items:
+        - uuid: 56d79e34731542b38b80e6037484c147
+          name: 'CPU Utilization'
+          key: 'system.cpu.util[,idle]'
+          value_type: FLOAT
+          units: '%'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'return 100 - Number(value);'
+          triggers:
+            - uuid: 364f471685554d4ba5c141fc4d91af93
+              expression: 'min(/Essential Items/system.cpu.util[,idle],5m)>{$CPU.UTIL.HIGH}'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/Essential Items/system.cpu.util[,idle],5m)<{$CPU.UTIL.RECOVERY}'
+              name: 'CPU utilization above {$CPU.UTIL.HIGH}% for 5m'
+              priority: WARNING
+              tags:
+                - tag: notify
+                  value: telegram
+        - uuid: d8e047d7cf084170bfeff8a345dc5c43
+          name: 'IPv4 routing table'
+          key: 'vfs.file.contents[/proc/net/route]'
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          description: 'Main IPv4 routing table, read using the standard agent. No helper or UserParameter required.'
+        - uuid: 9e99049c798a450ab23d6de2e8a24a8a
+          name: 'Active Download Speed'
+          key: 'net.if.in[eth0]'
+          status: DISABLED
+          units: Bps
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+        - uuid: 37d6b56d9eac4cafbdf431df8554c45e
+          name: 'Active Upload Speed'
+          key: 'net.if.out[eth0]'
+          status: DISABLED
+          units: Bps
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+        - uuid: ba8fbab472414fd49c585ceb95c49425
+          name: Proccessess
+          key: 'proc.get[,,,summary]'
+          value_type: TEXT
+        - uuid: 46d5e65a26cb498dbeb3127d69163f46
+          name: 'CPU Load'
+          key: system.cpu.load
+          value_type: FLOAT
+        - uuid: bafb702948ec4133ae394a1f46fcfad6
+          name: 'Operating System'
+          key: system.sw.os.get
+          value_type: TEXT
+        - uuid: 5b345a85f92e494f936ccefbdca50896
+          name: 'System Time'
+          key: system.uptime
+          units: uptime
+          description: 'Time the CPU has spent running the kernel and its processes.'
+          triggers:
+            - uuid: 712a47b03dfc4ad48d8ea523dd7adb93
+              expression: 'nodata(/Essential Items/system.uptime,{$AGENT.NODATA})=1'
+              name: 'No agent data for {$AGENT.NODATA}'
+              priority: HIGH
+              description: 'No uptime samples received. Check host, agent, proxy and connectivity; this does not by itself prove the host is down.'
+              tags:
+                - tag: notify
+                  value: telegram
+            - uuid: e7eb41125e3047c4b4c03774301e1015
+              expression: 'last(/Essential Items/system.uptime)<10m'
+              name: 'Host restarted within the last 10m'
+              priority: INFO
+              tags:
+                - tag: notify
+                  value: telegram
+        - uuid: 71960213bc6d4b3a8a17b486db232260
+          name: 'Disk Usage'
+          key: 'vfs.fs.size[/,pused]'
+          value_type: FLOAT
+          units: '%'
+          triggers:
+            - uuid: 9fd6de0d718f40ec85f7f976bb0a13ac
+              expression: 'min(/Essential Items/vfs.fs.size[/,pused],5m)>{$DISK.USED.HIGH}'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/Essential Items/vfs.fs.size[/,pused],5m)<{$DISK.USED.RECOVERY}'
+              name: 'Root disk usage above {$DISK.USED.HIGH}% for 5m'
+              priority: HIGH
+              tags:
+                - tag: notify
+                  value: telegram
+        - uuid: b0e4a51c6d234d1c812d93de24612ded
+          name: 'Available Memory'
+          key: 'vm.memory.size[pavailable]'
+          value_type: FLOAT
+          units: '%'
+          description: 'The available memory as percentage of the total. See also Appendixes in Zabbix Documentation about parameters of the `vm.memory.size` item.'
+          triggers:
+            - uuid: 11e7b11496864ca2bb4161a27ed02386
+              expression: 'max(/Essential Items/vm.memory.size[pavailable],5m)<{$MEM.AVAILABLE.LOW}'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'min(/Essential Items/vm.memory.size[pavailable],5m)>{$MEM.AVAILABLE.RECOVERY}'
+              name: 'Available memory below {$MEM.AVAILABLE.LOW}% for 5m'
+              priority: WARNING
+              tags:
+                - tag: notify
+                  value: telegram
+      discovery_rules:
+        - uuid: 07f48668e3e54a7eac270e878dcd2784
+          name: 'Default route network interface discovery'
+          type: DEPENDENT
+          key: net.if.default.discovery
+          lifetime_type: DELETE_NEVER
+          enabled_lifetime_type: DISABLE_IMMEDIATELY
+          description: 'Discovers the lowest-metric UP default route in the main IPv4 routing table. IPv6, policy routing and VPN split-default routes are not covered.'
+          master_item:
+            key: 'vfs.file.contents[/proc/net/route]'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var lines = value.trim().split(/\r?\n/);
+                  if (!lines.length || !/^Iface\s+Destination\s+Gateway\s+Flags/.test(lines[0])) {
+                      throw 'Invalid /proc/net/route header';
+                  }
+                  var selected = null;
+                  var lowestMetric = Infinity;
+                  for (var i = 1; i < lines.length; i++) {
+                      var fields = lines[i].trim().split(/\s+/);
+                      if (fields.length < 8) { continue; }
+                      var flags = parseInt(fields[3], 16);
+                      var metric = parseInt(fields[6], 10);
+                      if (fields[1] !== '00000000' || fields[7] !== '00000000' ||
+                          !(flags & 1) || (flags & 512) || !isFinite(metric)) { continue; }
+                      if (metric < lowestMetric) {
+                          selected = fields[0];
+                          lowestMetric = metric;
+                      }
+                  }
+                  return JSON.stringify(selected === null ? [] : [{'{#IFNAME}': selected}]);
+          item_prototypes:
+            - uuid: d5c7902614fa4920b0d09244ac773536
+              name: 'Active Download Speed'
+              key: 'net.if.in[{#IFNAME},bytes]'
+              delay: 30s
+              value_type: FLOAT
+              units: Bps
+              description: 'Received traffic on the discovered egress interface {#IFNAME}.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+            - uuid: 502948cd9687470194f233ed06aa6e29
+              name: 'Active Upload Speed'
+              key: 'net.if.out[{#IFNAME},bytes]'
+              delay: 30s
+              value_type: FLOAT
+              units: Bps
+              description: 'Sent traffic on the discovered egress interface {#IFNAME}.'
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+        - uuid: b39d698ff9054b1bae86984048a55132
+          name: proc.discovery
+          type: DEPENDENT
+          key: proc.discovery
+          item_prototypes:
+            - uuid: d7341f5b7d8443bab328b574b683aa18
+              name: 'Process count: {#PNAME}'
+              type: DEPENDENT
+              key: 'proc.count[{#PNAME}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#PNAME}")].processes.first()'
+              master_item:
+                key: 'proc.get[,,,summary]'
+            - uuid: db93be4c4f6a4d8eb47829a408b3fd9a
+              name: 'CPU time: {#PNAME}'
+              type: DEPENDENT
+              key: 'proc.cpu[{#PNAME}]'
+              value_type: FLOAT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#PNAME}")].cputime_user.first()'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: 'proc.get[,,,summary]'
+            - uuid: e50a53ca108a4402af536b8bcaa40431
+              name: 'Memory (RSS): {#PNAME}'
+              type: DEPENDENT
+              key: 'proc.rss[{#PNAME}]'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.name=="{#PNAME}")].rss.first()'
+              master_item:
+                key: 'proc.get[,,,summary]'
+          master_item:
+            key: 'proc.get[,,,summary]'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value);
+                  return JSON.stringify(d.map(function (p) { return {"{#PNAME}": p.name}; }));
+      macros:
+        - macro: '{$CPU.UTIL.HIGH}'
+          value: '90'
+        - macro: '{$CPU.UTIL.RECOVERY}'
+          value: '80'
+        - macro: '{$DISK.USED.HIGH}'
+          value: '90'
+        - macro: '{$DISK.USED.RECOVERY}'
+          value: '85'
+        - macro: '{$MEM.AVAILABLE.LOW}'
+          value: '10'
+        - macro: '{$MEM.AVAILABLE.RECOVERY}'
+          value: '15'
+        - macro: '{$AGENT.NODATA}'
+          value: 5m
+        - macro: '{$NET.IF.IFNAME.MATCHES}'
+          value: '^.*$'
+        - macro: '{$NET.IF.IFNAME.NOT_MATCHES}'
+          value: '(^Software Loopback Interface|^NULL[0-9.]*$|^[Ll]o[0-9.]*$|^[Ss]ystem$|^Nu[0-9.]*$|^veth[0-9A-z]+$|docker[0-9]+|br-[a-z0-9]{12})'

@@ -1,4 +1,43 @@
-# Agent ile dinamik arayüz
+# Linux ve Windows agent template'leri
+
+Zabbix 7.4+ için işletim sistemi ve agent çalışma biçimine göre dosya seç:
+
+| Sistem | Pasif agent | Aktif agent |
+| --- | --- | --- |
+| Linux | `templates/essential-items-linux.yaml` | `templates/essential-items-linux-active.yaml` |
+| Windows | `templates/essential-items-windows.yaml` | `templates/essential-items-windows-active.yaml` |
+
+Dosyayı **Data collection → Templates → Import** üzerinden içe aktar.
+**Create new / Update existing** açık, **Delete missing** kapalı olmalı.
+Hosta yalnızca işletim sistemine ve mevcut agent ayarına uygun tek sürümü bağla.
+Kurulum ve import scriptleri değiştirilmedi; Windows dosyaları arayüzden import edilir.
+
+Linux dosyaları mevcut template ve item UUID'lerini, `Essential Items` /
+`Essential Items Active` teknik adlarını korur; görünen adları
+`Essential Items Linux` / `Essential Items Linux Active` olur. Böylece mevcut
+Linux template'i güncellenir ve geçmiş veriler korunur. Eski
+`essential-items.yaml` script uyumluluğu için aynen bırakıldı; mevcut import
+scripti bu eski dosyayı kullanır ve görünen adı tekrar eski adına döndürebilir.
+Windows template'leri ayrı teknik adlara ve UUID'lere sahiptir.
+
+Windows CPU kullanımını `system.cpu.util` ile doğrudan toplar. Disk için
+`{$WINDOWS.SYSTEM.DRIVE}` varsayılanı `C:`; farklı sürücü için host macros alanından
+değiştir. Bu template yalnızca seçilen sürücüyü izler. Ağ keşfi `net.if.discovery`
+kullanır ve arayüz başına trafik üretir; varsayılan rotayı seçmez.
+`{$NET.IF.IFNAME.MATCHES}` / `{$NET.IF.IFNAME.NOT_MATCHES}` ile arayüzleri filtrele.
+Process belleği `wkset` alanından, kullanıcı CPU süresi milisaniyeden saniyeye
+çevrilerek alınır. CPU Load Windows'ta processor queue length anlamına gelir.
+CPU, disk, RAM, veri gelmemesi ve yeniden başlama bildirimleri korunur.
+
+Windows kaynakları:
+[agent anahtarları](https://www.zabbix.com/documentation/7.4/en/manual/config/items/itemtypes/zabbix_agent/win_keys),
+[process alanları](https://www.zabbix.com/documentation/7.4/en/manual/appendix/items/proc_get).
+
+Geri alma: Windows hostunda eklenen template'i **Unlink** ile ayır; geçmişi
+silmemek için **Unlink and clear** kullanma. Linux görünen adlarını geri almak
+için mevcut import scriptini kullandığın aktif/pasif seçeneğiyle çalıştır.
+
+## Linux agent ile dinamik arayüz
 
 Template yalnızca standart Linux Zabbix agent özelliklerini kullanır.
 Ek script, UserParameter veya servis yeniden başlatması gerekmez.

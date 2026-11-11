@@ -1,0 +1,219 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+  - uuid: 7df96b18c230490a9a0a9e2307226338
+    name: Templates
+  templates:
+  - uuid: 91a78166068a4c8db69549c6dd0b60e9
+    template: Essential Items Windows Active
+    name: Essential Items Windows Active
+    description: Essential Windows metrics for Zabbix agent 7.4+. Active checks. Configurable system drive and network interface
+      discovery; no helper scripts.
+    groups:
+    - name: Templates
+    items:
+    - uuid: e74bad2a9425496b9e43e48695da7f31
+      name: CPU Utilization
+      key: system.cpu.util
+      value_type: FLOAT
+      units: '%'
+      triggers:
+      - uuid: 590efba751b94cfcb4cbbc2dd5fccab6
+        expression: min(/Essential Items Windows Active/system.cpu.util,5m)>{$CPU.UTIL.HIGH}
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: max(/Essential Items Windows Active/system.cpu.util,5m)<{$CPU.UTIL.RECOVERY}
+        name: CPU utilization above {$CPU.UTIL.HIGH}% for 5m
+        priority: WARNING
+        tags:
+        - tag: notify
+          value: telegram
+      type: ZABBIX_ACTIVE
+    - uuid: eb00ea2cb23e42a0aa7e976ef03fd950
+      name: Processes
+      key: proc.get[,,,summary]
+      value_type: TEXT
+      type: ZABBIX_ACTIVE
+    - uuid: f2f1b8072ff94a2f8ba8ed03867c57f6
+      name: CPU Load
+      key: system.cpu.load
+      value_type: FLOAT
+      description: Windows processor queue length; not the Unix load average.
+      type: ZABBIX_ACTIVE
+    - uuid: f4befaecab064a57b99632c99bfcef46
+      name: Operating System
+      key: system.sw.os.get
+      value_type: TEXT
+      type: ZABBIX_ACTIVE
+    - uuid: 0e00761e769e423e880903ebaaa5102a
+      name: System Uptime
+      key: system.uptime
+      units: uptime
+      description: Time since the operating system started, in seconds.
+      triggers:
+      - uuid: eb0d81570fe14b0cb7bbc2ccdce24538
+        expression: nodata(/Essential Items Windows Active/system.uptime,{$AGENT.NODATA})=1
+        name: No agent data for {$AGENT.NODATA}
+        priority: HIGH
+        description: No uptime samples received. Check host, agent, proxy and connectivity; this does not by itself prove
+          the host is down.
+        tags:
+        - tag: notify
+          value: telegram
+      - uuid: f882f429bf9149d2bec0848e522d183d
+        expression: last(/Essential Items Windows Active/system.uptime)<10m
+        name: Host restarted within the last 10m
+        priority: INFO
+        tags:
+        - tag: notify
+          value: telegram
+      type: ZABBIX_ACTIVE
+    - uuid: 9b52546b89884116be265e00e47dcbfe
+      name: Disk Usage
+      key: vfs.fs.size[{$WINDOWS.SYSTEM.DRIVE},pused]
+      value_type: FLOAT
+      units: '%'
+      triggers:
+      - uuid: e432fa1a21f04aba97c70b4d0df8c62a
+        expression: min(/Essential Items Windows Active/vfs.fs.size[{$WINDOWS.SYSTEM.DRIVE},pused],5m)>{$DISK.USED.HIGH}
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: max(/Essential Items Windows Active/vfs.fs.size[{$WINDOWS.SYSTEM.DRIVE},pused],5m)<{$DISK.USED.RECOVERY}
+        name: System drive usage above {$DISK.USED.HIGH}% for 5m
+        priority: HIGH
+        tags:
+        - tag: notify
+          value: telegram
+      description: 'Used space on the configured Windows system drive (C: by default).'
+      type: ZABBIX_ACTIVE
+    - uuid: 7f848cb0b4634e498ecf92ffe5ecf686
+      name: Available Memory
+      key: vm.memory.size[pavailable]
+      value_type: FLOAT
+      units: '%'
+      description: The available memory as percentage of the total. See also Appendixes in Zabbix Documentation about parameters
+        of the `vm.memory.size` item.
+      triggers:
+      - uuid: 55d3c9561afd43cbbba2f0e5b1275c9d
+        expression: max(/Essential Items Windows Active/vm.memory.size[pavailable],5m)<{$MEM.AVAILABLE.LOW}
+        recovery_mode: RECOVERY_EXPRESSION
+        recovery_expression: min(/Essential Items Windows Active/vm.memory.size[pavailable],5m)>{$MEM.AVAILABLE.RECOVERY}
+        name: Available memory below {$MEM.AVAILABLE.LOW}% for 5m
+        priority: WARNING
+        tags:
+        - tag: notify
+          value: telegram
+      type: ZABBIX_ACTIVE
+    discovery_rules:
+    - uuid: 28462077a2d44d50a57acb918445be11
+      name: Windows network interface discovery
+      key: net.if.discovery
+      lifetime_type: DELETE_NEVER
+      enabled_lifetime_type: DISABLE_IMMEDIATELY
+      description: Discovers interfaces matching the host macros. Traffic is collected separately per interface; this does
+        not select the default route.
+      item_prototypes:
+      - uuid: 8d358a4f02d5437ba03cf617ce1eb6bb
+        name: 'Active Download Speed: {#IFNAME}'
+        key: net.if.in["{#IFNAME}",bytes]
+        delay: 30s
+        value_type: FLOAT
+        units: Bps
+        description: Traffic on the discovered Windows interface {#IFNAME}.
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+        type: ZABBIX_ACTIVE
+      - uuid: 37e392ad390044c0ab71f433d5217fb1
+        name: 'Active Upload Speed: {#IFNAME}'
+        key: net.if.out["{#IFNAME}",bytes]
+        delay: 30s
+        value_type: FLOAT
+        units: Bps
+        description: Traffic on the discovered Windows interface {#IFNAME}.
+        preprocessing:
+        - type: CHANGE_PER_SECOND
+        type: ZABBIX_ACTIVE
+      delay: 1m
+      filter:
+        evaltype: AND
+        conditions:
+        - macro: '{#IFNAME}'
+          value: '{$NET.IF.IFNAME.MATCHES}'
+          operator: MATCHES_REGEX
+          formulaid: A
+        - macro: '{#IFNAME}'
+          value: '{$NET.IF.IFNAME.NOT_MATCHES}'
+          operator: NOT_MATCHES_REGEX
+          formulaid: B
+      type: ZABBIX_ACTIVE
+    - uuid: d1fc53f4d0594fc0bbe559b06ac52804
+      name: proc.discovery
+      type: DEPENDENT
+      key: proc.discovery
+      item_prototypes:
+      - uuid: 545a43dffb2e474a9491bd3044ba12c9
+        name: 'Process count: {#PNAME}'
+        type: DEPENDENT
+        key: proc.count[{#PNAME}]
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $[?(@.name=="{#PNAME}")].processes.first()
+        master_item:
+          key: proc.get[,,,summary]
+      - uuid: 308a1eb485474a4d9e063c796f0dd6b3
+        name: 'Process user CPU time rate: {#PNAME}'
+        type: DEPENDENT
+        key: proc.cpu[{#PNAME}]
+        value_type: FLOAT
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $[?(@.name=="{#PNAME}")].cputime_user.first()
+        - type: MULTIPLIER
+          parameters:
+          - '0.001'
+        - type: CHANGE_PER_SECOND
+        master_item:
+          key: proc.get[,,,summary]
+        description: User CPU seconds per second, converted from Windows milliseconds; not normalized by CPU count.
+      - uuid: 430f2d79b32346499edca11643068b13
+        name: 'Memory (working set): {#PNAME}'
+        type: DEPENDENT
+        key: proc.wkset[{#PNAME}]
+        units: B
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $[?(@.name=="{#PNAME}")].wkset.first()
+        master_item:
+          key: proc.get[,,,summary]
+      master_item:
+        key: proc.get[,,,summary]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - 'var d = JSON.parse(value);
+
+          return JSON.stringify(d.map(function (p) { return {"{#PNAME}": p.name}; }));
+
+          '
+    macros:
+    - macro: '{$CPU.UTIL.HIGH}'
+      value: '90'
+    - macro: '{$CPU.UTIL.RECOVERY}'
+      value: '80'
+    - macro: '{$DISK.USED.HIGH}'
+      value: '90'
+    - macro: '{$DISK.USED.RECOVERY}'
+      value: '85'
+    - macro: '{$MEM.AVAILABLE.LOW}'
+      value: '10'
+    - macro: '{$MEM.AVAILABLE.RECOVERY}'
+      value: '15'
+    - macro: '{$AGENT.NODATA}'
+      value: 5m
+    - macro: '{$NET.IF.IFNAME.MATCHES}'
+      value: ^.*$
+    - macro: '{$NET.IF.IFNAME.NOT_MATCHES}'
+      value: (^Software Loopback Interface|^Loopback Pseudo-Interface|^isatap[.]|^Teredo)
+    - macro: '{$WINDOWS.SYSTEM.DRIVE}'
+      value: 'C:'
