@@ -28,7 +28,7 @@ alt ağı kullanılabilir. Adresleri kendi ortamına göre değiştir.
 Önizleme için `--plan` ekle. Diğer seçenekler: `--agent auto|classic|agent2`,
 `--port 10050`, `--group 'Linux servers'`, `--template 'Essential Items'`.
 Host adı ASCII harf/rakam, nokta, alt çizgi veya tireyle 1–64 karakterdir.
-Agent repo yolu verilmezse sunucu repo kökünün yanındaki `staj-agent` aranır;
+Agent repo yolu verilmezse sunucu repo kökünün yanındaki `zabbix-agent` aranır;
 repo isimleri/konumları farklıysa `--agent-source` zorunludur.
 
 ## Güvenli geçiş sırası

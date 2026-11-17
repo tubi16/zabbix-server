@@ -2,11 +2,19 @@
 
 Grafana 13 (dashboard.grafana.app/v2) ve Zabbix 7.4 API kullanılır.
 Ek Python paketi gerektirmez. `host-dashboard-sync` Compose servisi 60 saniyede
-bir `Linux servers` grubundaki etkin hostları okur; her host için export edilmiş
-Linux dashboard'undan ayrı dashboard üretir. `Zabbix — Linux devices` playlist'i
+bir `Linux servers` ve `Windows servers` gruplarındaki etkin hostları okur;
+her host için ayrı dashboard üretir. Windows sorguları Windows Essential Items
+template'indeki item adlarına uyarlanır. `Zabbix — Devices` playlist'i
 30 saniyelik geçişle bunları gösterir. Dashboard'lar `Zabbix Linux devices`
 klasöründe oluşturulur; kök dizin yetki farklılıklarından etkilenmez. Playlist'i Grafana arayüzünden bir kez
 başlatmak gerekir; servis tarayıcı açmaz.
+
+Mevcut playlist UID'si (`zabbix-linux-hosts`) ve dashboard UID'leri korunur;
+yeni playlist oluşturulmaz. Mevcut `Zabbix Linux devices` klasörü Windows
+dashboard'larını da içerir. Dashboard başlığında işletim sistemi görünür:
+`Linux — Cookie [101]`, `Windows — Office-PC [102]`. İşletim sistemi önce bağlı
+template'lerden, sonra inventory ve host gruplarından belirlenir; belirsizse
+`Unknown OS` yazılır.
 
 ## Token oluşturma
 
@@ -26,7 +34,7 @@ paylaşma; doğrulama için `config --quiet` kullan.
    geçici Admin gerekebilir; taşıma sonrasında Editor'a geri dön.
    İzleme verilerine erişim ise dashboard'un Zabbix veri
    kaynağı hesabının izinlerine bağlıdır.
-2. Zabbix'te API kullanıcısına `Linux servers` host grubu için **Read** yetkisi
+2. Zabbix'te API kullanıcısına `Linux servers` ve `Windows servers` host grupları için **Read** yetkisi
    ver. Kullanıcı rolünde API erişimi ile `hostgroup.get` ve `host.get` izinleri
    açık olsun. **Users → API tokens → Create API token** bölümünde bu kullanıcı
    için token oluştur; **Generate** ile üretilen değeri kopyala. Host/template
@@ -35,7 +43,7 @@ paylaşma; doğrulama için `config --quiet` kullan.
    Giriş ekranda görünmez, shell geçmişine veya Git'e yazılmaz:
 
    ```sh
-   cd /home/tubi/Projects/staj/staj-server
+   cd /home/tubi/Projects/zabbix-project/zabbix-server
    python3 grafana/host-sync/setup_tokens.py
    ```
 
@@ -56,6 +64,14 @@ Grafana'da veri kaynağı UID'sini güncelle. API'lerin aynı Zabbix ortamını 
 ettiğinden emin ol. Harici adresler için `ZABBIX_URL` ve `GRAFANA_URL` de
 tanımlanabilir; token'ları harici ortamlarda HTTPS üzerinden kullan.
 
+`ZABBIX_HOST_GROUPS=Linux servers,Windows servers` ile izlenecek grupları seç.
+Bu değişken yoksa eski `ZABBIX_HOST_GROUP` değeri (varsayılan `Linux servers`)
+ve `Windows servers` birlikte kullanılır. API kullanıcısının iki gruba da Read
+izni olmalıdır. Henüz oluşturulmamış grup atlanır; hiçbir gruba erişilemiyorsa
+playlist korunur. Windows hostuna uygun Windows Essential Items template'ini bağla.
+Kaynak JSON ortak tasarımdır; Windows ağ, uptime, CPU ve process sorguları otomatik
+uyarlanır. Windows için ayrı JSON dosyası veya Compose mount'u gerekmez.
+
 ```sh
 docker compose -f compose.yaml --profile host-sync config --quiet
 docker compose -f compose.yaml --profile host-sync up -d --no-deps host-dashboard-sync
@@ -69,7 +85,7 @@ otomasyonu yeniden açılışlarda çalıştırır. Tam kurulumda profili etkinl
 için Compose komutlarına `--profile host-sync` ekle.
 
 Grafana **Dashboards** listesinde `zabbix-host-sync` etiketini; **Playlists**
-listesinde `Zabbix — Linux devices` playlist'ini bulup başlat. Host adı, grup
+listesinde `Zabbix — Devices` playlist'ini bulup başlat. Host adı, grup
 ve template değişiklikleri sonraki senkronizasyonda uygulanır. Oluşturulan
 dashboard'lar için kaynak JSON'u düzenle; üretilen kopyalarda yapılan manuel
 değişiklikler sonraki kaynak güncellemesinde üzerine yazılır. Kimlikler host ID
@@ -92,3 +108,22 @@ Geri alma için yalnızca otomasyon servisini durdur. Dashboard ve playlist
 silinmez; diğer servisler etkilenmez. Tekrar başlatmak için yukarıdaki `up`
 komutunu kullan. Token yenilemede ilgili dosyayı güvenli bir editörde güncelle;
 servis token'ları her döngüde yeniden okur.
+
+## Mevcut sunucuyu güncelleme
+
+Güncel dosyaları sunucuya aldıktan sonra `zabbix-server` dizininde:
+
+```sh
+docker compose --profile host-sync config --quiet
+docker compose --profile host-sync up -d --no-deps --force-recreate host-dashboard-sync
+docker compose logs --since 2m --tail 30 host-dashboard-sync
+```
+
+Bu işlem yalnızca otomasyon container'ını yeniden oluşturur. Güncelleme sonraki
+60 saniyelik döngüde uygulanır. Açık playlist yeni cihazları göstermiyorsa
+arayüzden playlist'i yeniden başlat.
+
+Geri alma: `sync.py` ve grup yapılandırmasının önceki kopyalarını geri koyup
+yukarıdaki doğrulama/yeniden oluşturma komutlarını çalıştır. Dashboard ve
+playlist verilerini silme; Windows dashboard'ları korunur, eski otomasyon
+playlist'te yalnızca önceki grubu gösterir.

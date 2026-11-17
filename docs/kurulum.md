@@ -1,8 +1,28 @@
 # Kurulum ve kullanım
 
 Bu belge ayrı sunucu reposunun yeni kurulumu içindir. Bu kaynak kopyası
-başlatılmadı; çalışma alanındaki mevcut `staj-izleme` kurulumu değişmedi.
+başlatılmadı; çalışma alanındaki mevcut `zabbix-izleme` kurulumu değişmedi.
 Agent kurulum scripti bu repo içinde değildir; ayrı agent reposu gerekir.
+
+## Mevcut kurulumlarda ad değişikliği
+
+Yeni Compose proje adı `zabbix-server`. Çalışan eski kurulumda proje adını
+kontrol etmeden varsayılan adla `up` çalıştırma: farklı proje adı yeni container,
+ağ ve volume oluşturabilir. `docker compose ls` ile mevcut adı bul; mevcut
+verilerle devam etmek için aynı proje adını `-p MEVCUT_PROJE` ile kullan veya
+`COMPOSE_PROJECT_NAME` olarak tanımla. Proxy'nin `ZABBIX_DOCKER_NETWORK` değerini
+de gerçekten kullanılan frontend ağıyla eşleştir.
+
+Yeni agent PSK kimliği `zabbix-HOST`, anahtar yolu
+`/etc/zabbix/tls/zabbix-HOST.psk`. Mevcut agent ve Zabbix host kaydındaki
+kimlikler eşleşmeden yeniden kurulum yapma. Eski anahtar/config ve Docker
+volume'leri bu kaynak güncellemesiyle değiştirilmez veya silinmez.
+
+Geri alma: önceki kaynak sürümüne dön, mevcut Compose proje/ağ adını koru;
+agent değişikliği uygulanmışsa installer'ın config yedeğini geri yükle ve
+sunucudaki PSK kimliğini aynı eski kimlikle eşleştir. Agent yeniden başlatması
+öncesinde config'i `zabbix_agentd -T -c CONFIG` veya `zabbix_agent2 -T -c CONFIG`
+ile doğrula. Çalışan servis değişikliklerini bakım zamanında uygula.
 
 ## 1. Yerel ayarları hazırla
 
@@ -26,7 +46,7 @@ API adresi mevcut otomasyonla aynı şekilde `http://127.0.0.1:8080`'dir.
 Bu işlem için servis yeniden başlatmak gerekmez. Parolayı daha sonra arayüzden
 tekrar değiştirirsen `.env` kaydını da güncelle; geri dönüşte varsayılan parolayı kullanma.
 
-Compose proje adı `staj-server`dir. Varsayılan portlar Zabbix web 8080/8443,
+Compose proje adı `zabbix-server`dir. Varsayılan portlar Zabbix web 8080/8443,
 Grafana 3001 ve Zabbix server 10081 olarak ayrılmıştır. Ağlar da mevcut
 kurulumdan farklı alt ağlar kullanır. Makinedeki diğer servislerle çakışma
 varsa `.env` dosyasında port ve alt ağları değiştir.
@@ -99,5 +119,5 @@ docker compose stop
 
 Son iki komut sırasıyla otomasyonu ve bu proje kopyasının servislerini durdurur.
 Veritabanı dizinlerini veya Docker volume'lerini silme. Bu komutlar yalnızca
-`staj-server` Compose projesine uygulanır. Mevcut `staj-izleme` kurulumu ayrı
+`zabbix-server` Compose projesine uygulanır. Mevcut `zabbix-izleme` kurulumu ayrı
 projede çalışır; yeni kaynak paketinin hazırlanması onu durdurmaz veya taşımaz.

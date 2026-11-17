@@ -57,7 +57,7 @@ def enroll(target):
     ssh = prompt('SSH kullanıcısı@cihaz veya SSH alias', default=address)
     if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.@:-]*', ssh):
         raise ValueError('Geçersiz SSH hedefi.')
-    agent_source = Path(prompt('Agent repo yolu', str(target.parent / 'staj-agent'))).expanduser().resolve()
+    agent_source = Path(prompt('Agent repo yolu', str(target.parent / 'zabbix-agent'))).expanduser().resolve()
     if not (agent_source / 'install.py').is_file():
         raise ValueError('Agent repo yolunda install.py bulunamadı.')
     command = [sys.executable, target / 'zabbix/tls/enroll.py', '--host', host,
@@ -93,7 +93,7 @@ def packages(distro, names):
 def checkout(kind, base, distro):
     if not shutil.which('git'):
         packages(distro, ['git'])
-    target = base / ('staj-' + kind)
+    target = base / ('zabbix-' + kind)
     url = 'https://github.com/tubi16/zabbix-' + kind + '.git'
     if target.exists():
         if target.is_symlink() or not (target / '.git').is_dir():

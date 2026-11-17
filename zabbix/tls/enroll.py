@@ -12,7 +12,7 @@ import sys
 
 from psk_common import PRIVATE, ROOT, ensure_key, host_name, read_env, rpc
 
-MANAGED_TAG = {"tag": "tls-provisioner", "value": "staj-psk-v1"}
+MANAGED_TAG = {"tag": "tls-provisioner", "value": "zabbix-psk-v1"}
 
 
 def write_state(path, state):
@@ -80,7 +80,7 @@ class Enrollment:
                           "phase": "prepared", "original": self.existing}
         write_state(self.state_path, self.state)
         if self.args.ssh:
-            self.remote = "staj-zabbix-tls/" + self.args.host
+            self.remote = "zabbix-tls/" + self.args.host
             script = "umask 077; mkdir -p " + shlex.quote(self.remote) + "; chmod 700 " + shlex.quote(self.remote)
             self.command(["ssh", "--", self.args.ssh, script])
             self.command(["scp", "--", str(self.agent_source / "install.py"), str(self.key_path),
@@ -104,14 +104,14 @@ class Enrollment:
             # Key goes only through stdin into a private temporary container file,
             # never command-line arguments, environment variables or logs.
             script = '''set -eu
-keyfile=$(mktemp /tmp/staj-psk.XXXXXX)
+keyfile=$(mktemp /tmp/zabbix-psk.XXXXXX)
 chmod 600 "$keyfile"
 trap 'rm -f "$keyfile"' EXIT HUP INT TERM
 cat > "$keyfile"
 zabbix_get -s "$1" -p "$2" -k agent.ping -t 5 --tls-connect psk --tls-psk-identity "$3" --tls-psk-file "$keyfile"
 '''
             command = ["docker", "compose", "exec", "-T", "zabbix-server", "sh", "-c", script,
-                       "probe", self.args.address, str(self.args.port), "staj-" + self.args.host]
+                       "probe", self.args.address, str(self.args.port), "zabbix-" + self.args.host]
             result = self.run(command, cwd=ROOT, input=(self.key + "\n").encode(), capture_output=True, timeout=20)
         else:
             command = ["docker", "compose", "exec", "-T", "zabbix-server", "zabbix_get",
@@ -129,7 +129,7 @@ zabbix_get -s "$1" -p "$2" -k agent.ping -t 5 --tls-connect psk --tls-psk-identi
         templates = merged_ids(self.existing.get("parentTemplates", []) if self.existing else [], "templateid", self.templateid)
         interface = {"type": 1, "main": 1, "useip": 1, "ip": self.args.address, "dns": "", "port": str(self.args.port)}
         data = {"groups": groups, "templates": templates, "tls_connect": 2, "tls_accept": 2,
-                "tls_psk_identity": "staj-" + self.args.host, "tls_psk": self.key}
+                "tls_psk_identity": "zabbix-" + self.args.host, "tls_psk": self.key}
         tags = self.existing.get("tags", []) if self.existing else []
         data["tags"] = [t for t in tags if t["tag"] != MANAGED_TAG["tag"]] + [MANAGED_TAG]
         if self.existing:
@@ -194,8 +194,8 @@ def arguments(argv=None):
     parser.add_argument("--port", type=int, default=10050)
     parser.add_argument("--group", default="Linux servers")
     parser.add_argument("--template", default="Essential Items")
-    parser.add_argument("--agent-source", type=Path, default=ROOT.parent / "staj-agent",
-                        help="Local clone of the separate agent repo; default ../staj-agent")
+    parser.add_argument("--agent-source", type=Path, default=ROOT.parent / "zabbix-agent",
+                        help="Local clone of the separate agent repo; default ../zabbix-agent")
     parser.add_argument("--plan", action="store_true", help="Show plan without connecting or changing anything")
     parser.add_argument("--rollback", action="store_true", help="Restore saved server TLS settings or disable a newly created host")
     args = parser.parse_args(argv)

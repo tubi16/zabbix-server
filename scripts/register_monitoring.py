@@ -25,7 +25,7 @@ def registration(args, call=rpc):
             raise ValueError('Bu isimde kayıt mevcut; değiştirilmedi. Mevcut kayıt geçişini web arayüzünde yap.')
         params = {field: args.name, 'tls_accept': 2,
                   'tls_psk_identity': args.identity or
-                  (args.name + '-server' if kind == 'proxy' else 'staj-' + args.name),
+                  (args.name + '-server' if kind == 'proxy' else 'zabbix-' + args.name),
                   'tls_psk': key}
         if kind == 'proxy':
             # No fixed allowed_addresses: a remote site's public NAT address can change.

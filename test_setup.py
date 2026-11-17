@@ -25,7 +25,7 @@ class WizardTests(unittest.TestCase):
 
     def test_existing_directory_never_overwritten(self):
         with tempfile.TemporaryDirectory() as temp:
-            (Path(temp) / 'staj-server').mkdir()
+            (Path(temp) / 'zabbix-server').mkdir()
             with patch.object(wizard.shutil, 'which', return_value='/usr/bin/git'), patch.object(wizard, 'run') as run:
                 with self.assertRaises(SystemExit):
                     wizard.checkout('server', Path(temp), 'arch')
@@ -33,7 +33,7 @@ class WizardTests(unittest.TestCase):
 
     def test_wrong_origin_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
-            (Path(temp) / 'staj-agent' / '.git').mkdir(parents=True)
+            (Path(temp) / 'zabbix-agent' / '.git').mkdir(parents=True)
             with patch.object(wizard.shutil, 'which', return_value='/usr/bin/git'), patch.object(wizard.subprocess, 'check_output', return_value='https://example.org/other.git'), patch.object(wizard, 'run') as run:
                 with self.assertRaises(SystemExit):
                     wizard.checkout('agent', Path(temp), 'arch')

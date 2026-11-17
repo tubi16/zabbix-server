@@ -38,7 +38,7 @@ def main():
                     json.dump({k: host[k] for k in ("hostid", "tls_connect", "tls_accept")}, file)
             key = (private / (args.host + ".psk")).read_text().strip()
             rpc("host.update", {"hostid": host["hostid"], "tls_connect": 2, "tls_accept": 2,
-                                "tls_psk_identity": "staj-" + args.host, "tls_psk": key}, session)
+                                "tls_psk_identity": "zabbix-" + args.host, "tls_psk": key}, session)
         print(args.host + (": previous server TLS settings restored" if args.rollback else ": server requires PSK in both directions"))
     finally:
         rpc("user.logout", [], session)

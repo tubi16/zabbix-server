@@ -4,7 +4,7 @@
 Yeni üretim server kurulumu için `python3 setup.py --production` kullan.
 
 Bu rehber sunucu kurulumu ve **SSH üzerinden uzak Linux cihaz ekleme** içindir.
-Komutları aksi belirtilmedikçe `staj-server` klasöründe, normal kullanıcıyla çalıştır.
+Komutları aksi belirtilmedikçe `zabbix-server` klasöründe, normal kullanıcıyla çalıştır.
 Docker komutları için kullanıcının Docker erişimi olmalıdır.
 
 ## 1. Sunucuyu kur
@@ -130,7 +130,7 @@ Gösterilen planı kontrol et ve kayıt işlemini onayla. İşlem agent ayarlar�
 yedekler ve agent servisini yeniden başlatır. Her cihaz için ayrı PSK üretilir:
 
 - Sunucudaki anahtar: `zabbix/tls/private/CIHAZ_ADI.psk`
-- Uzak cihazdaki anahtar: `/etc/zabbix/tls/staj-CIHAZ_ADI.psk`
+- Uzak cihazdaki anahtar: `/etc/zabbix/tls/zabbix-CIHAZ_ADI.psk`
 
 PSK'yi elle üretmen veya ilk cihazın anahtarını başka cihazda kullanman gerekmez.
 Sunucunun `.env` dosyası ve API token'ları uzak cihaza gönderilmez.
@@ -203,11 +203,12 @@ docker compose logs --tail 30 host-dashboard-sync
 Bu komut yalnızca dashboard otomasyonunu başlatır; Zabbix, MySQL ve Grafana'yı
 yeniden başlatmaz. Başarılı döngüde logda `Synced ... hosts` görürsün.
 
-Otomasyon varsayılan olarak 60 saniyede bir `Linux servers` grubundaki etkin
-hostları kontrol eder. Grafana sayfasını yenile:
+Otomasyon varsayılan olarak 60 saniyede bir `Linux servers` ve `Windows servers`
+gruplarındaki etkin hostları kontrol eder; her dashboard başlığında işletim
+sistemi görünür. API kullanıcısına iki grup için de Read izni ver. Grafana sayfasını yenile:
 
-- **Dashboards → Zabbix Linux devices:** Her cihazın dashboard'u.
-- **Dashboards → Playlists → Zabbix — Linux devices:** Cihazları sırayla gösteren playlist.
+- **Dashboards → Zabbix Linux devices:** Linux ve Windows cihazlarının dashboard'ları.
+- **Dashboards → Playlists → Zabbix — Devices:** Cihazları sırayla gösteren playlist.
 
 Playlist'i arayüzden başlat; varsayılan geçiş süresi 30 saniyedir. Grupta etkin
 host yoksa cihaz dashboard'u oluşmaz. Sonradan eklenen cihazlar sonraki döngüde

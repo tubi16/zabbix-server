@@ -50,6 +50,25 @@ def host_uid(hostid):
     return "zbx-host-" + str(int(hostid))
 
 
+def host_os(host, group):
+    """Prefer linked OS templates, then inventory, then explicit OS groups."""
+    templates = " ".join(t.get("host", "") + " " + t.get("name", "")
+                         for t in host.get("parentTemplates", []))
+    inventory = host.get("inventory") or {}
+    groups = " ".join(g.get("name", "") for g in host.get("hostgroups", [])) or group
+    for evidence in (templates, " ".join(inventory.get(k, "") for k in ("os", "os_full", "os_short")), groups):
+        windows = bool(re.search(r"\bwindows\b", evidence, re.I))
+        linux = bool(re.search(r"\b(linux|ubuntu|debian|arch|centos|rocky|alma|rhel|fedora|suse)\b", evidence, re.I))
+        if windows != linux:
+            return "Windows" if windows else "Linux"
+        if windows and linux:
+            return "Unknown OS"
+    if any(t.get("host") in ("Essential Items", "Essential Items Active")
+           for t in host.get("parentTemplates", [])):
+        return "Linux"
+    return "Unknown OS"
+
+
 def render(template, host, group, datasource):
     dashboard = {"apiVersion": "dashboard.grafana.app/v2", "kind": "Dashboard",
                  "metadata": {"name": host_uid(host["hostid"]),
@@ -57,20 +76,38 @@ def render(template, host, group, datasource):
                  "spec": copy.deepcopy(template["spec"])}
     spec = dashboard["spec"]
     name = host.get("name") or host["host"]
-    spec["title"] = f"Linux — {name} [{host['hostid']}]"
-    spec["tags"] = sorted(set(spec.get("tags", [])) | {OWNER})
+    operating_system = host_os(host, group)
+    spec["title"] = f"{operating_system} — {name} [{host['hostid']}]"
+    spec["description"] = f"Operating system: {operating_system}. Automatically managed host dashboard."
+    spec["tags"] = sorted(set(spec.get("tags", [])) | {OWNER, "os:" + operating_system})
     spec["timeSettings"].update({"from": "now-1h", "to": "now", "autoRefresh": "10s"})
 
     def rewrite(value):
         if isinstance(value, dict):
             if isinstance(value.get("datasource"), dict):
                 value["datasource"]["name"] = datasource
+            if operating_system == "Windows" and isinstance(value.get("item"), dict):
+                filters = {"Active Download Speed": "/^Active Download Speed:/",
+                           "Active Upload Speed": "/^Active Upload Speed:/",
+                           "System Time": "System Uptime", "CPU Load": "CPU Utilization",
+                           "/^CPU time:/": "/^Process user CPU time rate:/"}
+                current = value["item"].get("filter")
+                if current in filters:
+                    value["item"]["filter"] = filters[current]
             for child in value.values():
                 rewrite(child)
         elif isinstance(value, list):
             for child in value:
                 rewrite(child)
     rewrite(spec)
+    for element in spec.get("elements", {}).values():
+        panel = element.get("spec", {})
+        if operating_system == "Windows" and panel.get("title") == "CPU Load":
+            panel["title"] = "CPU Utilization (%)"
+            defaults = panel["vizConfig"]["spec"]["fieldConfig"]["defaults"]
+            defaults.update({"unit": "percent", "min": 0, "max": 100})
+        if panel.get("title") == "New panel":
+            panel["title"] = "Process user CPU time rate" if operating_system == "Windows" else "Process CPU time rate"
     found = set()
     for variable in spec["variables"]:
         config = variable["spec"]
@@ -121,7 +158,10 @@ def sync(zabbix, grafana, template, group, datasource, interval):
     source = grafana.request("GET", "/api/datasources/uid/" + datasource)
     if source.get("type") != "alexanderzobnin-zabbix-datasource":
         raise ValueError("Configured datasource must be a Zabbix datasource")
-    groups = zabbix.rpc("hostgroup.get", {"output": ["groupid"], "filter": {"name": [group]}})
+    group_names = list(dict.fromkeys(g.strip() for g in group.split(",") if g.strip()))
+    if not group_names:
+        raise ValueError("At least one host group must be configured")
+    groups = zabbix.rpc("hostgroup.get", {"output": ["groupid", "name"], "filter": {"name": group_names}})
     if not groups:
         raise RuntimeError("Host group is absent or API user has no access; playlist left unchanged")
     # Grafana can return 403 rather than 404 for an absent folder to Editors.
@@ -133,15 +173,21 @@ def sync(zabbix, grafana, template, group, datasource, interval):
         raise RuntimeError("Managed folder UID belongs to another folder")
     hosts = zabbix.rpc("host.get", {"output": ["hostid", "host", "name"],
                                    "groupids": [g["groupid"] for g in groups],
+                                   "selectHostGroups": ["groupid", "name"],
+                                   "selectParentTemplates": ["host", "name"],
+                                   "selectInventory": ["os", "os_full", "os_short"],
                                    "filter": {"status": "0"}})
+    hosts = list({h["hostid"]: h for h in hosts}.values())
     hosts.sort(key=lambda host: ((host.get("name") or host["host"]).casefold(), int(host["hostid"])))
     changed = 0
     for host in hosts:
+        memberships = {g["name"] for g in host.get("hostgroups", [])}
+        host_group = next((g for g in group_names if g in memberships), group_names[0])
         changed += upsert(grafana, "/apis/dashboard.grafana.app/v2/namespaces/default/dashboards",
-                          render(template, host, group, datasource))
+                          render(template, host, host_group, datasource))
     # Update only after every dashboard is available. Never delete dashboards.
     playlist = resource("playlist.grafana.app/v1", "Playlist", "zabbix-linux-hosts",
-                        {"title": "Zabbix — Linux devices", "interval": interval,
+                        {"title": "Zabbix — Devices", "interval": interval,
                          "items": [{"type": "dashboard_by_uid", "value": host_uid(h["hostid"])}
                                    for h in hosts]})
     changed += upsert(grafana, "/apis/playlist.grafana.app/v1/namespaces/default/playlists", playlist)
@@ -170,7 +216,7 @@ def main():
                 raise ValueError("Expected Grafana v2 dashboard template")
             sync(API(os.getenv("ZABBIX_URL", "http://zabbix-web-nginx-mysql:8080/api_jsonrpc.php"), tokens[0]),
                  API(os.getenv("GRAFANA_URL", "http://grafana:3000"), tokens[1]), template,
-                 os.getenv("ZABBIX_HOST_GROUP", "Linux servers"),
+                 os.getenv("ZABBIX_HOST_GROUPS", os.getenv("ZABBIX_HOST_GROUP", "Linux servers") + ",Windows servers"),
                  os.getenv("GRAFANA_DATASOURCE_UID", "zabbix"),
                  os.getenv("PLAYLIST_INTERVAL", "30s"))
         except Exception as error:

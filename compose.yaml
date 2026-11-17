@@ -1,4 +1,4 @@
-name: staj-server
+name: zabbix-server
 
 x-logging: &bounded-logging
  driver: json-file
