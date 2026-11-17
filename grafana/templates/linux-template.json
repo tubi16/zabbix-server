@@ -677,8 +677,8 @@
         "kind": "Panel",
         "spec": {
           "id": 5,
-          "title": "Memory",
-          "description": "",
+          "title": "Used Memory (%)",
+          "description": "Used RAM percentage: 100 minus available memory percentage.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -700,7 +700,58 @@
                         },
                         "countTriggersBy": "",
                         "evaltype": "0",
-                        "functions": [],
+                        "functions": [
+                          {
+                            "added": true,
+                            "def": {
+                              "category": "Transform",
+                              "defaultParams": [
+                                100
+                              ],
+                              "name": "scale",
+                              "params": [
+                                {
+                                  "name": "factor",
+                                  "type": "float",
+                                  "options": [
+                                    100,
+                                    0.01,
+                                    10,
+                                    -1
+                                  ]
+                                }
+                              ]
+                            },
+                            "params": [
+                              "-1"
+                            ],
+                            "text": "scale(-1)"
+                          },
+                          {
+                            "added": true,
+                            "def": {
+                              "category": "Transform",
+                              "defaultParams": [
+                                100
+                              ],
+                              "name": "offset",
+                              "params": [
+                                {
+                                  "name": "delta",
+                                  "type": "float",
+                                  "options": [
+                                    -100,
+                                    100
+                                  ]
+                                }
+                              ]
+                            },
+                            "params": [
+                              "100"
+                            ],
+                            "text": "offset(100)"
+                          }
+                        ],
                         "group": {
                           "filter": "$Group"
                         },
@@ -801,7 +852,11 @@
                   },
                   "color": {
                     "mode": "thresholds"
-                  }
+                  },
+                  "unit": "percent",
+                  "min": 0,
+                  "max": 100,
+                  "displayName": "Used RAM"
                 },
                 "overrides": []
               }
