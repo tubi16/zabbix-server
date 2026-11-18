@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "customers": [
+    {
+      "id": "musteri01",
+      "name": "Firma 01",
+      "group": "Customers/musteri01",
+      "proxy": "proxy-musteri01",
+      "proxy_host": "proxy-health-musteri01",
+      "enabled": true
+    },
+    {
+      "id": "musteri02",
+      "name": "Firma 02",
+      "group": "Customers/musteri02",
+      "proxy": "proxy-musteri02",
+      "proxy_host": "proxy-health-musteri02",
+      "enabled": false
+    },
+    {
+      "id": "musteri03",
+      "name": "Firma 03",
+      "group": "Customers/musteri03",
+      "proxy": "proxy-musteri03",
+      "proxy_host": "proxy-health-musteri03",
+      "enabled": false
+    },
+    {
+      "id": "musteri04",
+      "name": "Firma 04",
+      "group": "Customers/musteri04",
+      "proxy": "proxy-musteri04",
+      "proxy_host": "proxy-health-musteri04",
+      "enabled": false
+    },
+    {
+      "id": "musteri05",
+      "name": "Firma 05",
+      "group": "Customers/musteri05",
+      "proxy": "proxy-musteri05",
+      "proxy_host": "proxy-health-musteri05",
+      "enabled": false
+    },
+    {
+      "id": "musteri06",
+      "name": "Firma 06",
+      "group": "Customers/musteri06",
+      "proxy": "proxy-musteri06",
+      "proxy_host": "proxy-health-musteri06",
+      "enabled": false
+    },
+    {
+      "id": "musteri07",
+      "name": "Firma 07",
+      "group": "Customers/musteri07",
+      "proxy": "proxy-musteri07",
+      "proxy_host": "proxy-health-musteri07",
+      "enabled": false
+    },
+    {
+      "id": "musteri08",
+      "name": "Firma 08",
+      "group": "Customers/musteri08",
+      "proxy": "proxy-musteri08",
+      "proxy_host": "proxy-health-musteri08",
+      "enabled": false
+    },
+    {
+      "id": "musteri09",
+      "name": "Firma 09",
+      "group": "Customers/musteri09",
+      "proxy": "proxy-musteri09",
+      "proxy_host": "proxy-health-musteri09",
+      "enabled": false
+    },
+    {
+      "id": "musteri10",
+      "name": "Firma 10",
+      "group": "Customers/musteri10",
+      "proxy": "proxy-musteri10",
+      "proxy_host": "proxy-health-musteri10",
+      "enabled": false
+    }
+  ]
+}

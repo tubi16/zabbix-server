@@ -1,0 +1,54 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+  - uuid: c2c2bbea9a5745fe9d9a2b20ff250488
+    name: Templates/Roles
+  templates:
+  - uuid: 3829b3d3b8fb4e1b9e5b8cca05a705ad
+    template: Website availability
+    name: Website availability
+    description: One website per host. Set {$WEB.URL} before linking/enabling. HTTPS verification remains enabled. Required
+      content is an optional regex. This does not check certificate expiry in advance.
+    groups:
+    - name: Templates/Roles
+    httptests:
+    - uuid: b42a27d6ab914f3eade7b067696be3d9
+      name: Website
+      delay: 1m
+      attempts: '2'
+      verify_peer: 'YES'
+      verify_host: 'YES'
+      steps:
+      - name: Endpoint
+        url: '{$WEB.URL}'
+        follow_redirects: 'YES'
+        required: '{$WEB.REQUIRED.TEXT}'
+        status_codes: 200-299
+        timeout: 15s
+      tags:
+      - tag: component
+        value: web
+    macros:
+    - macro: '{$WEB.URL}'
+      value: https://example.invalid/
+    - macro: '{$WEB.REQUIRED.TEXT}'
+      value: ''
+  triggers:
+  - uuid: 772aba7692b04487a2f61879e7196b41
+    expression: count(/Website availability/web.test.fail[Website],3m)>=3 and min(/Website availability/web.test.fail[Website],3m)>0
+    name: Website check failed (3 checks)
+    priority: HIGH
+    tags:
+    - tag: notify
+      value: telegram
+    - tag: component
+      value: web
+  - uuid: a58b3bb8e4674f66ae67bdd73705ae8a
+    expression: nodata(/Website availability/web.test.fail[Website],5m)=1
+    name: Website check data unavailable
+    priority: WARNING
+    tags:
+    - tag: notify
+      value: telegram
+    - tag: component
+      value: web

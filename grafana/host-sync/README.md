@@ -1,5 +1,8 @@
 # Host dashboard ve playlist otomasyonu
 
+Müşteri → cihaz görünümü için [müşteri pilot rehberine](CUSTOMERS.md) bak.
+Yeni mod açıkça etkinleştirilir; bu sayfadaki playlist modu varsayılan kalır.
+
 Grafana 13 (dashboard.grafana.app/v2) ve Zabbix 7.4 API kullanılır.
 Ek Python paketi gerektirmez. `host-dashboard-sync` Compose servisi 60 saniyede
 bir `Linux servers` ve `Windows servers` gruplarındaki etkin hostları okur;

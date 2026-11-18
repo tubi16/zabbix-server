@@ -1,0 +1,61 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+  - uuid: c2c2bbea9a5745fe9d9a2b20ff250488
+    name: Templates/Roles
+  templates:
+  - uuid: e754b4453e9d4570a14afef8b384be0c
+    template: Required Windows services
+    name: Required Windows services
+    description: Optional explicit allowlist. Set {$REQUIRED.SERVICES} to a JSON array of technical names. Empty list means
+      no checks. Use the matching passive/active variant. No remote command execution.
+    groups:
+    - name: Templates/Roles
+    discovery_rules:
+    - uuid: e6bbf662771744d3a7b80e6cf7591f99
+      name: Explicit required service list
+      type: SCRIPT
+      key: required.services.discovery
+      delay: 5m
+      lifetime_type: DELETE_NEVER
+      enabled_lifetime_type: DISABLE_IMMEDIATELY
+      parameters:
+      - name: names
+        value: '{$REQUIRED.SERVICES}'
+      params: |-
+        var names = JSON.parse(JSON.parse(value).names);
+        if (!Array.isArray(names) || names.length > 100) {
+            throw 'Expected a JSON array with at most 100 names';
+        }
+        var seen = Object.create(null);
+        return JSON.stringify(names.map(function(name) {
+            if (typeof name !== 'string' || !/^[A-Za-z0-9_. $-]+$/.test(name) || name.length > 128) {
+                throw 'Invalid service/process name';
+            }
+            name = name.trim();
+            if (!name || seen[name]) { throw 'Empty or duplicate name'; }
+            seen[name] = true;
+            var row = {};
+            row['{#SERVICE.NAME}'] = name;
+            return row;
+        }));
+      item_prototypes:
+      - uuid: d1f81cd970df482ba438e4f95bade1b5
+        name: 'Required service state: {#SERVICE.NAME}'
+        key: service.info["{#SERVICE.NAME}",state]
+        delay: 1m
+        trigger_prototypes:
+        - uuid: 6dd6169e745a4123b921a5d94a814a07
+          expression: count(/Required Windows services/service.info["{#SERVICE.NAME}",state],3m)>=3 and min(/Required Windows
+            services/service.info["{#SERVICE.NAME}",state],3m)<>0
+          name: Required service {#SERVICE.NAME} is not running (3 checks)
+          priority: HIGH
+          tags:
+          - tag: notify
+            value: telegram
+          - tag: component
+            value: service
+        description: 'Windows service state: 0 is Running. Missing required services are detected as non-running.'
+    macros:
+    - macro: '{$REQUIRED.SERVICES}'
+      value: '[]'

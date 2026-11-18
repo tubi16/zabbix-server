@@ -195,8 +195,8 @@ services:
    - path: ./env_vars/.env_dashboard_sync
      required: false
   volumes:
-   - ./grafana/host-sync/sync.py:/app/sync.py:ro
-   - ./grafana/templates/linux-template.json:/app/template.json:ro
+   - ./grafana/host-sync:/app:ro
+   - ./grafana/templates:/templates:ro
    - ./grafana/host-sync/secrets:/run/secrets:ro
   networks:
    - backend

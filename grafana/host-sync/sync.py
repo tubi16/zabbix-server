@@ -6,6 +6,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import sys
 import time
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -211,14 +212,22 @@ def main():
     while True:
         try:
             tokens = [read_token(service) for service in ("zabbix", "grafana")]
-            template = json.loads(Path("/app/template.json").read_text())
+            template_path = Path(os.getenv("DASHBOARD_TEMPLATE", "/templates/linux-template.json"))
+            template = json.loads(template_path.read_text())
             if template.get("apiVersion") != "dashboard.grafana.app/v2":
                 raise ValueError("Expected Grafana v2 dashboard template")
-            sync(API(os.getenv("ZABBIX_URL", "http://zabbix-web-nginx-mysql:8080/api_jsonrpc.php"), tokens[0]),
-                 API(os.getenv("GRAFANA_URL", "http://grafana:3000"), tokens[1]), template,
-                 os.getenv("ZABBIX_HOST_GROUPS", os.getenv("ZABBIX_HOST_GROUP", "Linux servers") + ",Windows servers"),
-                 os.getenv("GRAFANA_DATASOURCE_UID", "zabbix"),
-                 os.getenv("PLAYLIST_INTERVAL", "30s"))
+            zabbix = API(os.getenv("ZABBIX_URL", "http://zabbix-web-nginx-mysql:8080/api_jsonrpc.php"), tokens[0])
+            grafana = API(os.getenv("GRAFANA_URL", "http://grafana:3000"), tokens[1])
+            datasource = os.getenv("GRAFANA_DATASOURCE_UID", "zabbix")
+            customer_config = os.getenv("CUSTOMER_CONFIG", "").strip()
+            if customer_config:
+                from customer_dashboards import load_customers, sync_customers
+                sync_customers(sys.modules[__name__], zabbix, grafana, template,
+                               load_customers(customer_config), datasource)
+            else:
+                sync(zabbix, grafana, template,
+                     os.getenv("ZABBIX_HOST_GROUPS", os.getenv("ZABBIX_HOST_GROUP", "Linux servers") + ",Windows servers"),
+                     datasource, os.getenv("PLAYLIST_INTERVAL", "30s"))
         except Exception as error:
             # Unexpected errors are identified without dumping potentially sensitive bodies.
             if isinstance(error, (RuntimeError, ValueError, FileNotFoundError)):

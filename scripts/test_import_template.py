@@ -41,14 +41,13 @@ class ImportTests(unittest.TestCase):
     def test_active_triggers_reference_active_template_without_item_type(self):
         active = importer.active_source(importer.TEMPLATE.read_text())
         self.assertNotIn('/Essential Items/', active)
-        self.assertEqual(active.count('expression:'), 8)
+        self.assertEqual(active.count('expression:'), 10)
         trigger_blocks = re.findall(
-            r'(?m)^            - uuid:[^\n]*\n(?:^ {14,}[^\n]*\n)*', active)
-        trigger_blocks = [block for block in trigger_blocks if 'expression:' in block]
-        self.assertEqual(len(trigger_blocks), 5)
+            r'(?m)^((?: {12}| {16})- uuid:[^\n]*\n(?: {14}| {18})expression:[^\n]*\n(?:^ {14,}[^\n]*\n)*)', active)
+        self.assertEqual(len(trigger_blocks), 6)  # five legacy triggers plus filesystem prototype
         for block in trigger_blocks:
             self.assertNotIn('type: ZABBIX_ACTIVE', block)
-        self.assertEqual(active.count('value: telegram'), 5)
+        self.assertEqual(active.count('value: telegram'), 6)
 
     def test_failed_import_logs_out_without_verification(self):
         call = Mock(side_effect=['session', RuntimeError('import failed'), True])

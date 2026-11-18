@@ -1,5 +1,17 @@
 # Linux ve Windows agent template'leri
 
+Seçili kritik servis/process ve web kontrolleri için
+[profil template'leri rehberine](templates/PROFILES.md) bak. Geniş process
+keşfi artık varsayılan olarak devre dışıdır; servis listeleri host macros
+alanında açıkça seçilir. Bu aşamada Telegram action'ı oluşturulmaz.
+
+Güncel dosyalar ayrı sürücü keşfi ve `Agent data age` metriğini içerir.
+Eski tek sürücü item/trigger'ı geçmişi korunarak devre dışı kalır. Pilot import,
+filtreler, sürücüye özel eşikler ve geri alma için
+[müşteri pilot rehberindeki disk bölümüne](../grafana/host-sync/CUSTOMERS.md#2-disk-keşfi-ve-veri-yaşı) bak.
+Proxy bağlantısını ayrıca izlemek için `templates/customer-proxy-health.yaml`
+kullanılabilir; agent template'i yerine merkezi bir proxy monitör hostuna bağlanır.
+
 Zabbix 7.4+ için işletim sistemi ve agent çalışma biçimine göre dosya seç:
 
 | Sistem | Pasif agent | Aktif agent |
@@ -16,13 +28,14 @@ Linux dosyaları mevcut template ve item UUID'lerini, `Essential Items` /
 `Essential Items Active` teknik adlarını korur; görünen adları
 `Essential Items Linux` / `Essential Items Linux Active` olur. Böylece mevcut
 Linux template'i güncellenir ve geçmiş veriler korunur. Eski
-`essential-items.yaml` script uyumluluğu için aynen bırakıldı; mevcut import
-scripti bu eski dosyayı kullanır ve görünen adı tekrar eski adına döndürebilir.
+`essential-items.yaml` yolu ve teknik adları script uyumluluğu için korundu;
+bu dosya da güncel disk keşfini içerir. Mevcut import scripti bu dosyayı kullanır
+ve görünen adı tekrar eski adına döndürebilir.
 Windows template'leri ayrı teknik adlara ve UUID'lere sahiptir.
 
-Windows CPU kullanımını `system.cpu.util` ile doğrudan toplar. Disk için
-`{$WINDOWS.SYSTEM.DRIVE}` varsayılanı `C:`; farklı sürücü için host macros alanından
-değiştir. Bu template yalnızca seçilen sürücüyü izler. Ağ keşfi `net.if.discovery`
+Windows CPU kullanımını `system.cpu.util` ile doğrudan toplar. Diskler
+`vfs.fs.discovery` ile ayrı ayrı izlenir; `{$WINDOWS.SYSTEM.DRIVE}` yalnızca
+devre dışı bırakılmış eski tek-disk item'ının macro'sudur. Ağ keşfi `net.if.discovery`
 kullanır ve arayüz başına trafik üretir; varsayılan rotayı seçmez.
 `{$NET.IF.IFNAME.MATCHES}` / `{$NET.IF.IFNAME.NOT_MATCHES}` ile arayüzleri filtrele.
 Process belleği `wkset` alanından, kullanıcı CPU süresi milisaniyeden saniyeye
@@ -67,7 +80,7 @@ Pasif ve aktif template aynı beş trigger'ı içerir:
 | Kontrol | Problem | Düzelme | Seviye |
 | --- | --- | --- | --- |
 | CPU kullanımı | 5 dakika boyunca > %90 | 5 dakika boyunca < %80 | Warning |
-| Kök disk doluluğu | 5 dakika boyunca > %90 | 5 dakika boyunca < %85 | High |
+| Her sürücünün doluluğu | 5 dakika boyunca > %90 | 5 dakika boyunca < %85 | High |
 | Kullanılabilir RAM | 5 dakika boyunca < %10 | 5 dakika boyunca > %15 | Warning |
 | Agent verisi | 5 dakika uptime verisi yok | Veri yeniden gelir | High |
 | Yeniden başlama | Uptime < 10 dakika | Uptime >= 10 dakika | Information |

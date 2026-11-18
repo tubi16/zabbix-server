@@ -30,6 +30,7 @@ zabbix_export:
     - uuid: 2dc23a8be0ea469caa489467ae791637
       name: Processes
       key: proc.get[,,,summary]
+      status: DISABLED
       value_type: TEXT
     - uuid: ef92894e121d4c3c8ac0435920d5159c
       name: CPU Load
@@ -68,16 +69,18 @@ zabbix_export:
       value_type: FLOAT
       units: '%'
       triggers:
-      - uuid: 116871d2e70049919063b92b7de40d81
-        expression: min(/Essential Items Windows/vfs.fs.size[{$WINDOWS.SYSTEM.DRIVE},pused],5m)>{$DISK.USED.HIGH}
-        recovery_mode: RECOVERY_EXPRESSION
-        recovery_expression: max(/Essential Items Windows/vfs.fs.size[{$WINDOWS.SYSTEM.DRIVE},pused],5m)<{$DISK.USED.RECOVERY}
-        name: System drive usage above {$DISK.USED.HIGH}% for 5m
-        priority: HIGH
-        tags:
-        - tag: notify
-          value: telegram
-      description: 'Used space on the configured Windows system drive (C: by default).'
+        - uuid: 116871d2e70049919063b92b7de40d81
+          expression: min(/Essential Items Windows/vfs.fs.size[{$WINDOWS.SYSTEM.DRIVE},pused],5m)>{$DISK.USED.HIGH}
+          recovery_mode: RECOVERY_EXPRESSION
+          recovery_expression: max(/Essential Items Windows/vfs.fs.size[{$WINDOWS.SYSTEM.DRIVE},pused],5m)<{$DISK.USED.RECOVERY}
+          name: System drive usage above {$DISK.USED.HIGH}% for 5m
+          priority: HIGH
+          tags:
+            - tag: notify
+              value: telegram
+          status: DISABLED
+      description: Legacy single-drive item retained disabled for history. Use filesystem discovery.
+      status: DISABLED
     - uuid: 4d08f075ccba4803b83a01be4ec8e5d5
       name: Available Memory
       key: vm.memory.size[pavailable]
@@ -95,6 +98,15 @@ zabbix_export:
         tags:
         - tag: notify
           value: telegram
+    - uuid: 113725615e534acdb408452aff1c4189
+      name: Agent data age
+      type: CALCULATED
+      key: agent.data.age
+      delay: 1m
+      value_type: FLOAT
+      units: s
+      params: now()-lastclock(//system.uptime)
+      description: Age of the latest uptime sample timestamp. Missing history remains unsupported, never zero.
     discovery_rules:
     - uuid: ba281a59363b467da792890d28c34820
       name: Windows network interface discovery
@@ -136,6 +148,7 @@ zabbix_export:
           formulaid: B
     - uuid: 942ae3fcfa8c4b8abab7deb9b8ac07fe
       name: proc.discovery
+      status: DISABLED
       type: DEPENDENT
       key: proc.discovery
       item_prototypes:
@@ -186,6 +199,62 @@ zabbix_export:
           return JSON.stringify(d.map(function (p) { return {"{#PNAME}": p.name}; }));
 
           '
+    - uuid: 84821afcf7ea49499da5e5d9c245c34e
+      name: Mounted filesystem discovery
+      key: vfs.fs.discovery
+      delay: 1h
+      lifetime_type: DELETE_NEVER
+      enabled_lifetime_type: DISABLE_IMMEDIATELY
+      filter:
+        evaltype: AND
+        conditions:
+          - macro: '{#FSNAME}'
+            value: '{$VFS.FS.FSNAME.MATCHES}'
+            operator: MATCHES_REGEX
+            formulaid: A
+          - macro: '{#FSNAME}'
+            value: '{$VFS.FS.FSNAME.NOT_MATCHES}'
+            operator: NOT_MATCHES_REGEX
+            formulaid: B
+          - macro: '{#FSTYPE}'
+            value: '{$VFS.FS.FSTYPE.MATCHES}'
+            operator: MATCHES_REGEX
+            formulaid: C
+          - macro: '{#FSTYPE}'
+            value: '{$VFS.FS.FSTYPE.NOT_MATCHES}'
+            operator: NOT_MATCHES_REGEX
+            formulaid: D
+      item_prototypes:
+        - uuid: 54cc0898ae634bc2ad9dd87aac9495af
+          name: 'Disk usage: {#FSNAME}'
+          key: vfs.fs.size["{#FSNAME}",pused]
+          delay: 1m
+          units: '%'
+          value_type: FLOAT
+          trigger_prototypes:
+            - uuid: 21a49a8cfab446df8dc6b0224e1fba3b
+              expression: min(/Essential Items Windows/vfs.fs.size["{#FSNAME}",pused],5m)>{$DISK.USED.HIGH:"{#FSNAME}"}
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: max(/Essential Items Windows/vfs.fs.size["{#FSNAME}",pused],5m)<{$DISK.USED.RECOVERY:"{#FSNAME}"}
+              name: 'Filesystem {#FSNAME}: usage above {$DISK.USED.HIGH:"{#FSNAME}"}% for 5m'
+              priority: HIGH
+              tags:
+                - tag: notify
+                  value: telegram
+                - tag: component
+                  value: storage
+                - tag: filesystem
+                  value: '{#FSNAME}'
+        - uuid: d23632543494451c8cefd491c9a7f4e3
+          name: 'Disk free space: {#FSNAME}'
+          key: vfs.fs.size["{#FSNAME}",free]
+          delay: 1m
+          units: B
+        - uuid: 3a680e14acdf459fab0c9e2925576e42
+          name: 'Disk total space: {#FSNAME}'
+          key: vfs.fs.size["{#FSNAME}",total]
+          delay: 1m
+          units: B
     macros:
     - macro: '{$CPU.UTIL.HIGH}'
       value: '90'
@@ -207,3 +276,11 @@ zabbix_export:
       value: (^Software Loopback Interface|^Loopback Pseudo-Interface|^isatap[.]|^Teredo)
     - macro: '{$WINDOWS.SYSTEM.DRIVE}'
       value: 'C:'
+    - macro: '{$VFS.FS.FSNAME.MATCHES}'
+      value: ^.+$
+    - macro: '{$VFS.FS.FSNAME.NOT_MATCHES}'
+      value: ^$
+    - macro: '{$VFS.FS.FSTYPE.MATCHES}'
+      value: (?i)^(NTFS|ReFS|FAT|FAT32|exFAT)$
+    - macro: '{$VFS.FS.FSTYPE.NOT_MATCHES}'
+      value: ^$

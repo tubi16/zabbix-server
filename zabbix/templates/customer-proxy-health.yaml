@@ -1,0 +1,55 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+  - uuid: 7df96b18c230490a9a0a9e2307226338
+    name: Templates
+  templates:
+  - uuid: 84ae985c713f42e2af0a287c406c19f6
+    template: Customer proxy health
+    name: Customer proxy health
+    description: Server-side proxy heartbeat monitoring. Link to a dedicated host in Monitoring/Proxies, monitored by Server,
+      and set {$PROXY.NAME}. No agent interface is required.
+    groups:
+    - name: Templates
+    items:
+    - uuid: dbf12a1a9c7a441088751407a8eec2ed
+      name: Proxy last access
+      type: INTERNAL
+      key: zabbix[proxy,"{$PROXY.NAME}",lastaccess]
+      delay: 1m
+      units: unixtime
+      triggers:
+      - uuid: 184c2b95d4bb4634ad315c4b77ea3bde
+        expression: fuzzytime(/Customer proxy health/zabbix[proxy,"{$PROXY.NAME}",lastaccess],{$PROXY.MAX.AGE})=0
+        name: 'Proxy {$PROXY.NAME}: no recent connection'
+        priority: HIGH
+        tags:
+        - tag: notify
+          value: telegram
+        - tag: component
+          value: proxy
+    - uuid: 0841c7abe3e24d7d8ca97fe10efb89fa
+      name: Proxy heartbeat age
+      type: CALCULATED
+      key: proxy.heartbeat.age
+      value_type: FLOAT
+      delay: 1m
+      units: s
+      params: now()-last(//zabbix[proxy,"{$PROXY.NAME}",lastaccess])
+      triggers:
+      - uuid: d1d28cad64384feeb0b1c92c85ff95f9
+        expression: nodata(/Customer proxy health/proxy.heartbeat.age,{$PROXY.NODATA})=1
+        name: 'Proxy {$PROXY.NAME}: monitoring data unavailable'
+        priority: WARNING
+        tags:
+        - tag: notify
+          value: telegram
+        - tag: component
+          value: proxy
+    macros:
+    - macro: '{$PROXY.NAME}'
+      value: proxy-musteri01
+    - macro: '{$PROXY.MAX.AGE}'
+      value: 3m
+    - macro: '{$PROXY.NODATA}'
+      value: 5m

@@ -59,6 +59,7 @@ zabbix_export:
           type: ZABBIX_ACTIVE
           name: Proccessess
           key: 'proc.get[,,,summary]'
+          status: DISABLED
           value_type: TEXT
         - uuid: 80daf2336e014637a45d1d2b9e97bc89
           type: ZABBIX_ACTIVE
@@ -94,20 +95,23 @@ zabbix_export:
                   value: telegram
         - uuid: 5e1cf52360a34d129c4d5eb7e0435daf
           type: ZABBIX_ACTIVE
-          name: 'Disk Usage'
-          key: 'vfs.fs.size[/,pused]'
+          name: Disk Usage
+          key: vfs.fs.size[/,pused]
           value_type: FLOAT
           units: '%'
           triggers:
             - uuid: 1eefd88edd224d559d86895acbf04417
-              expression: 'min(/Essential Items Active/vfs.fs.size[/,pused],5m)>{$DISK.USED.HIGH}'
+              expression: min(/Essential Items Active/vfs.fs.size[/,pused],5m)>{$DISK.USED.HIGH}
               recovery_mode: RECOVERY_EXPRESSION
-              recovery_expression: 'max(/Essential Items Active/vfs.fs.size[/,pused],5m)<{$DISK.USED.RECOVERY}'
-              name: 'Root disk usage above {$DISK.USED.HIGH}% for 5m'
+              recovery_expression: max(/Essential Items Active/vfs.fs.size[/,pused],5m)<{$DISK.USED.RECOVERY}
+              name: Root disk usage above {$DISK.USED.HIGH}% for 5m
               priority: HIGH
               tags:
                 - tag: notify
                   value: telegram
+              status: DISABLED
+          status: DISABLED
+          description: Legacy single-drive item retained disabled for history. Use filesystem discovery.
         - uuid: a1cbc9cf29a9436a9604b96554cb7e5b
           type: ZABBIX_ACTIVE
           name: 'Available Memory'
@@ -125,6 +129,15 @@ zabbix_export:
               tags:
                 - tag: notify
                   value: telegram
+        - uuid: 76543150ceef487bb7d2723f806ab373
+          name: Agent data age
+          type: CALCULATED
+          key: agent.data.age
+          delay: 1m
+          value_type: FLOAT
+          units: s
+          params: now()-lastclock(//system.uptime)
+          description: Age of the latest uptime sample timestamp. Missing history remains unsupported, never zero.
       discovery_rules:
         - uuid: 93b81af50ae84c9da1d38c7e49ad64f6
           name: 'Default route network interface discovery'
@@ -181,6 +194,7 @@ zabbix_export:
                 - type: CHANGE_PER_SECOND
         - uuid: b5800cce4e304defac772848136d6124
           name: proc.discovery
+          status: DISABLED
           type: DEPENDENT
           key: proc.discovery
           item_prototypes:
@@ -225,6 +239,66 @@ zabbix_export:
                 - |
                   var d = JSON.parse(value);
                   return JSON.stringify(d.map(function (p) { return {"{#PNAME}": p.name}; }));
+        - uuid: 305a57a266304af88dac28eca3569261
+          type: ZABBIX_ACTIVE
+          name: Mounted filesystem discovery
+          key: vfs.fs.discovery
+          delay: 1h
+          lifetime_type: DELETE_NEVER
+          enabled_lifetime_type: DISABLE_IMMEDIATELY
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#FSNAME}'
+                value: '{$VFS.FS.FSNAME.MATCHES}'
+                operator: MATCHES_REGEX
+                formulaid: A
+              - macro: '{#FSNAME}'
+                value: '{$VFS.FS.FSNAME.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: B
+              - macro: '{#FSTYPE}'
+                value: '{$VFS.FS.FSTYPE.MATCHES}'
+                operator: MATCHES_REGEX
+                formulaid: C
+              - macro: '{#FSTYPE}'
+                value: '{$VFS.FS.FSTYPE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: D
+          item_prototypes:
+            - uuid: a99f32b8182b45058162b8f807c5564b
+              type: ZABBIX_ACTIVE
+              name: 'Disk usage: {#FSNAME}'
+              key: vfs.fs.size["{#FSNAME}",pused]
+              delay: 1m
+              units: '%'
+              value_type: FLOAT
+              trigger_prototypes:
+                - uuid: 8c90adfbca8e4463ac2cf963a7e0edc9
+                  expression: min(/Essential Items Active/vfs.fs.size["{#FSNAME}",pused],5m)>{$DISK.USED.HIGH:"{#FSNAME}"}
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: max(/Essential Items Active/vfs.fs.size["{#FSNAME}",pused],5m)<{$DISK.USED.RECOVERY:"{#FSNAME}"}
+                  name: 'Filesystem {#FSNAME}: usage above {$DISK.USED.HIGH:"{#FSNAME}"}% for 5m'
+                  priority: HIGH
+                  tags:
+                    - tag: notify
+                      value: telegram
+                    - tag: component
+                      value: storage
+                    - tag: filesystem
+                      value: '{#FSNAME}'
+            - uuid: a65b037dd2434324b42fe5dca9d28ba3
+              type: ZABBIX_ACTIVE
+              name: 'Disk free space: {#FSNAME}'
+              key: vfs.fs.size["{#FSNAME}",free]
+              delay: 1m
+              units: B
+            - uuid: 5d82f2afb1f445e984a529c11898927e
+              type: ZABBIX_ACTIVE
+              name: 'Disk total space: {#FSNAME}'
+              key: vfs.fs.size["{#FSNAME}",total]
+              delay: 1m
+              units: B
       macros:
         - macro: '{$CPU.UTIL.HIGH}'
           value: '90'
@@ -244,3 +318,11 @@ zabbix_export:
           value: '^.*$'
         - macro: '{$NET.IF.IFNAME.NOT_MATCHES}'
           value: '(^Software Loopback Interface|^NULL[0-9.]*$|^[Ll]o[0-9.]*$|^[Ss]ystem$|^Nu[0-9.]*$|^veth[0-9A-z]+$|docker[0-9]+|br-[a-z0-9]{12})'
+        - macro: '{$VFS.FS.FSNAME.MATCHES}'
+          value: ^.+$
+        - macro: '{$VFS.FS.FSNAME.NOT_MATCHES}'
+          value: ^(/dev|/proc|/sys|/run)(/|$)
+        - macro: '{$VFS.FS.FSTYPE.MATCHES}'
+          value: ^.+$
+        - macro: '{$VFS.FS.FSTYPE.NOT_MATCHES}'
+          value: ^(proc|sysfs|tmpfs|devtmpfs|devpts|cgroup2?|squashfs|overlay|nsfs|autofs|securityfs|debugfs|tracefs|configfs|fusectl|pstore|hugetlbfs|mqueue|binfmt_misc|rpc_pipefs)$

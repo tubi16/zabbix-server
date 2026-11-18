@@ -1,0 +1,59 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+  - uuid: c2c2bbea9a5745fe9d9a2b20ff250488
+    name: Templates/Roles
+  templates:
+  - uuid: bb20f22620ef46c8a790bcf7ec5f9679
+    template: Required processes
+    name: Required processes
+    description: Optional explicit allowlist. Set {$REQUIRED.PROCESSES} to a JSON array of technical names. Empty list means
+      no checks. Use the matching passive/active variant. No remote command execution.
+    groups:
+    - name: Templates/Roles
+    discovery_rules:
+    - uuid: 497770d769dd4bc0bdbd03af71f57008
+      name: Explicit required process list
+      type: SCRIPT
+      key: required.processes.discovery
+      delay: 5m
+      lifetime_type: DELETE_NEVER
+      enabled_lifetime_type: DISABLE_IMMEDIATELY
+      parameters:
+      - name: names
+        value: '{$REQUIRED.PROCESSES}'
+      params: |-
+        var names = JSON.parse(JSON.parse(value).names);
+        if (!Array.isArray(names) || names.length > 100) {
+            throw 'Expected a JSON array with at most 100 names';
+        }
+        var seen = Object.create(null);
+        return JSON.stringify(names.map(function(name) {
+            if (typeof name !== 'string' || !/^[A-Za-z0-9_. $-]+$/.test(name) || name.length > 128) {
+                throw 'Invalid service/process name';
+            }
+            name = name.trim();
+            if (!name || seen[name]) { throw 'Empty or duplicate name'; }
+            seen[name] = true;
+            var row = {};
+            row['{#PROCESS.NAME}'] = name;
+            return row;
+        }));
+      item_prototypes:
+      - uuid: f6205c52f57841518a8af55f1c9c7d13
+        name: 'Required process count: {#PROCESS.NAME}'
+        key: proc.num["{#PROCESS.NAME}"]
+        delay: 1m
+        trigger_prototypes:
+        - uuid: 849e65f5f8e14d619865ee6a765f1cfd
+          expression: count(/Required processes/proc.num["{#PROCESS.NAME}"],3m)>=3 and max(/Required processes/proc.num["{#PROCESS.NAME}"],3m)<1
+          name: Required process {#PROCESS.NAME} is absent (3 checks)
+          priority: HIGH
+          tags:
+          - tag: notify
+            value: telegram
+          - tag: component
+            value: process
+    macros:
+    - macro: '{$REQUIRED.PROCESSES}'
+      value: '[]'
