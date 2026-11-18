@@ -137,9 +137,11 @@ def shared_device(api, template, customers, datasource):
     spec['tags'] = [api.OWNER, 'customers']
     spec['editable'] = False
     spec['links'] = [{'title': 'Customers', 'type': 'link', 'url': link(OVERVIEW), 'asDropdown': False,
-                      'includeVars': False, 'keepTime': False, 'targetBlank': False},
+                      'includeVars': False, 'keepTime': False, 'targetBlank': False,
+                      'icon': 'external link', 'tooltip': '', 'tags': []},
                      {'title': 'Service and website checks', 'type': 'link', 'url': link(CHECKS), 'asDropdown': False,
-                      'includeVars': True, 'keepTime': True, 'targetBlank': False}]
+                      'includeVars': True, 'keepTime': True, 'targetBlank': False,
+                      'icon': 'external link', 'tooltip': '', 'tags': []}]
     groups = '/^(' + '|'.join(re.escape(c['group']).replace('/', r'\/') for c in customers) + ')$/'
     for variable in spec['variables']:
         v = variable['spec']
