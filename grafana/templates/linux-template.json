@@ -541,8 +541,8 @@
         "kind": "Panel",
         "spec": {
           "id": 4,
-          "title": "Disk usage by filesystem (%)",
-          "description": "Each discovered filesystem is shown separately. Legacy single-drive items are hidden after migration.",
+          "title": "Filesystem capacity",
+          "description": "Latest values per filesystem. Linux / and Windows C: appear first, followed by descending usage.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -564,7 +564,32 @@
                         },
                         "countTriggersBy": "",
                         "evaltype": "0",
-                        "functions": [],
+                        "functions": [
+                          {
+                            "def": {
+                              "name": "replaceAlias",
+                              "category": "Alias",
+                              "params": [
+                                {
+                                  "name": "regexp",
+                                  "type": "string"
+                                },
+                                {
+                                  "name": "newAlias",
+                                  "type": "string"
+                                }
+                              ],
+                              "defaultParams": [
+                                "/(.*)/",
+                                "$1"
+                              ]
+                            },
+                            "params": [
+                              "/^Disk Usage$/",
+                              "Disk usage: System volume (legacy)"
+                            ]
+                          }
+                        ],
                         "group": {
                           "filter": "$Group"
                         },
@@ -572,7 +597,7 @@
                           "filter": "$Host"
                         },
                         "item": {
-                          "filter": "/^(Disk usage:.*|Disk Usage)$/"
+                          "filter": "/^(Disk (usage|free space|total space): .+|Disk Usage)$/"
                         },
                         "itemTag": {
                           "filter": ""
@@ -611,66 +636,194 @@
                   }
                 }
               ],
-              "transformations": [],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "reduce",
+                  "spec": {
+                    "options": {
+                      "mode": "seriesToRows",
+                      "reducers": [
+                        "lastNotNull"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "extractFields",
+                  "spec": {
+                    "options": {
+                      "source": "Field",
+                      "format": "regexp",
+                      "regExp": "/Disk (?<Metric>usage|free space|total space): (?<Volume>.+)$/"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "groupingToMatrix",
+                  "spec": {
+                    "options": {
+                      "columnField": "Metric",
+                      "rowField": "Volume",
+                      "valueField": "Last *",
+                      "emptyValue": "null"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "extractFields",
+                  "spec": {
+                    "options": {
+                      "source": "Volume\\Metric",
+                      "format": "regexp",
+                      "regExp": "/^(?<System>\\/$|[Cc]:\\\\?$|System volume \\(legacy\\)$|)/"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "sortBy",
+                  "spec": {
+                    "options": {
+                      "sort": [
+                        {
+                          "field": "System",
+                          "desc": true
+                        },
+                        {
+                          "field": "usage",
+                          "desc": true
+                        },
+                        {
+                          "field": "Volume\\Metric"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "System": true
+                      },
+                      "indexByName": {
+                        "Volume\\Metric": 0,
+                        "usage": 1,
+                        "free space": 2,
+                        "total space": 3
+                      },
+                      "renameByName": {
+                        "Volume\\Metric": "Volume",
+                        "usage": "Usage",
+                        "free space": "Free",
+                        "total space": "Total"
+                      }
+                    }
+                  }
+                }
+              ],
               "queryOptions": {}
             }
           },
           "vizConfig": {
             "kind": "VizConfig",
-            "group": "gauge",
+            "group": "table",
             "version": "13.3.0",
             "spec": {
               "options": {
-                "barShape": "flat",
-                "barWidthFactor": 0.5,
-                "effects": {
-                  "barGlow": false,
-                  "centerGlow": false,
-                  "gradient": true
-                },
-                "endpointMarker": "point",
-                "minVizHeight": 75,
-                "minVizWidth": 75,
-                "orientation": "auto",
-                "reduceOptions": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "fields": "",
-                  "values": false
-                },
-                "segmentCount": 1,
-                "segmentSpacing": 0.3,
-                "shape": "gauge",
-                "showThresholdLabels": false,
-                "showThresholdMarkers": true,
-                "sizing": "auto",
-                "sparkline": true,
-                "textMode": "auto"
+                "showHeader": true,
+                "cellHeight": "sm"
               },
               "fieldConfig": {
                 "defaults": {
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
+                  "noValue": "—"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Usage"
+                    },
+                    "properties": [
                       {
-                        "value": 0,
-                        "color": "green"
+                        "id": "unit",
+                        "value": "percent"
                       },
                       {
-                        "value": 80,
-                        "color": "red"
+                        "id": "min",
+                        "value": 0
+                      },
+                      {
+                        "id": "max",
+                        "value": 100
+                      },
+                      {
+                        "id": "decimals",
+                        "value": 1
+                      },
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "thresholds"
+                        }
+                      },
+                      {
+                        "id": "thresholds",
+                        "value": {
+                          "mode": "absolute",
+                          "steps": [
+                            {
+                              "value": null,
+                              "color": "green"
+                            },
+                            {
+                              "value": 80,
+                              "color": "red"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "custom.cellOptions",
+                        "value": {
+                          "type": "gauge",
+                          "mode": "basic",
+                          "valueDisplayMode": "text"
+                        }
                       }
                     ]
                   },
-                  "color": {
-                    "mode": "thresholds"
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Free"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "bytes"
+                      }
+                    ]
                   },
-                  "unit": "percent",
-                  "min": 0,
-                  "max": 100
-                },
-                "overrides": []
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Total"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "bytes"
+                      }
+                    ]
+                  }
+                ]
               }
             }
           }

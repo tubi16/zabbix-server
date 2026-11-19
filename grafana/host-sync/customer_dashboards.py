@@ -112,6 +112,44 @@ def panel(number, title, kind, query_spec=None, content=None, url=None, age=Fals
                       'spec': {'options': options, 'fieldConfig': {'defaults': defaults, 'overrides': []}}}}}
 
 
+def proxy_age_table(template, customers, datasource):
+    table = panel(2, 'Proxy heartbeat ages', 'table', age=True)
+    spec = table['spec']
+    spec['description'] = 'Latest heartbeat age in the last 5 minutes. The roster lists customer proxies awaiting data.'
+    data = spec['data']['spec']
+    for index, customer in enumerate(customers, 1):
+        metric = query(template, datasource, 'Monitoring/Proxies',
+                       exact(customer['proxy_host']), 'Proxy heartbeat age')
+        metric['spec']['functions'] = [{
+            'def': {'name': 'setAlias', 'category': 'Alias',
+                    'params': [{'name': 'alias', 'type': 'string'}], 'defaultParams': ['']},
+            'params': [customer['proxy']],
+        }]
+        data['queries'].append({
+            'kind': 'PanelQuery',
+            'spec': {'query': metric, 'refId': f'P{index}', 'hidden': False},
+        })
+    data['transformations'] = [
+        {'kind': 'Transformation', 'group': 'reduce', 'spec': {
+            'options': {'mode': 'seriesToRows', 'reducers': ['lastNotNull']}}},
+        {'kind': 'Transformation', 'group': 'sortBy', 'spec': {
+            'options': {'sort': [{'field': 'Field'}]}}},
+        {'kind': 'Transformation', 'group': 'organize', 'spec': {
+            'options': {'renameByName': {'Field': 'Proxy', 'Last *': 'Heartbeat age'}}}},
+    ]
+    spec['vizConfig']['spec']['fieldConfig']['overrides'] = [{
+        'matcher': {'id': 'byName', 'options': 'Heartbeat age'},
+        'properties': [
+            {'id': 'unit', 'value': 's'},
+            {'id': 'custom.cellOptions', 'value': {'type': 'color-text'}},
+            {'id': 'thresholds', 'value': {'mode': 'absolute', 'steps': [
+                {'value': None, 'color': 'green'}, {'value': 180, 'color': 'orange'},
+                {'value': 300, 'color': 'red'}]}},
+        ],
+    }]
+    return table
+
+
 def dashboard(api, uid, title, panels):
     return {'apiVersion': 'dashboard.grafana.app/v2', 'kind': 'Dashboard',
             'metadata': {'name': uid, 'annotations': {api.FOLDER_ANNOTATION: FOLDER}},
@@ -294,8 +332,16 @@ def sync_customers(api, zabbix, grafana, template, customers, datasource):
         by_group[memberships[0]].append(host)
     desired = [shared_device(api, template, customers, datasource), shared_checks(api, template, customers, datasource),
                shared_hardware(api, template, customers, datasource)]
-    overview = [panel(1, 'Customers', 'text', content='Choose a company. Zero problems does not prove fresh data. '
-                      'Proxy age must also be checked. **UNKNOWN** means missing data, not a healthy device.')]
+    roster = ['| Customer | Proxy | Public location |', '| --- | --- | --- |']
+    for customer in customers:
+        name = markdown(customer['name'])
+        uid = 'zbx-customer-' + customer['id']
+        location = markdown(customer.get('location', '—'))
+        roster.append(f"| [{name}]({link(uid)}) | {markdown(customer['proxy'])} | {location} |")
+    overview = [
+        panel(1, 'Customers', 'text', content='\n'.join(roster)),
+        proxy_age_table(template, customers, datasource),
+    ]
     for i, customer in enumerate(customers, 1):
         uid = 'zbx-customer-' + customer['id']
         devices = sorted(by_group[customer['group']], key=lambda h: (h.get('name') or h['host']).casefold())
@@ -328,7 +374,6 @@ def sync_customers(api, zabbix, grafana, template, customers, datasource):
         overview.append(panel(i * 3 + 1, customer['name'] + ' — critical problems', 'stat',
                               query(template, datasource, customer['group'], problems=True, count=True, min_severity=4),
                               url=link(uid), critical=True))
-        overview.append(panel(i * 3 + 2, customer['name'] + ' — proxy age', 'stat', proxy_query, url=link(uid), age=True))
     desired.append(dashboard(api, OVERVIEW, 'Customers — overview', overview))
     # Plan all resources and validate before the first write. No snapshots of live status are embedded.
     folders = grafana.request('GET', '/api/search?type=dash-folder&query=Zabbix%20Customers')
